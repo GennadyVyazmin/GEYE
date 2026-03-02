@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     frame_max_width: int = 960
     process_every_n_frames: int = 2
     jpeg_quality: int = 75
+    rtsp_low_latency_mode: bool = True
+    rtsp_drain_grabs: int = 3
     min_db_event_interval_sec: float = 2.0
     count_confirm_min_hits: int = 3
     count_confirm_min_age_sec: float = 1.5

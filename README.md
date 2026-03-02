@@ -22,6 +22,7 @@ MVP-сервер для:
   - список текущих `global_id`.
 - `POST /api/reset` - сброс счетчиков, треков и очистка событий в БД.
 - `GET /api/gallery?window=online|hour|day` - фото уникальных людей (приоритет на лицо анфас).
+- `POST /api/people/register` и `GET /api/people/{global_id}` - ручная регистрация человека по `G`-ID.
 
 ## Важно про "идентификацию каждого"
 
@@ -57,7 +58,8 @@ cp .env.example .env
 - `REID_MATCH_THRESHOLD` - строгость сопоставления при повторном входе,
 - `REID_MAX_ABSENCE_SEC` - как долго хранить профиль человека для повторной идентификации,
 - `COUNT_CONFIRM_MIN_HITS` и `COUNT_CONFIRM_MIN_AGE_SEC` - подтверждение нового гостя перед записью в статистику,
-- `PHOTO_DIR`, `PHOTO_CAPTURE_ONCE_PER_ID`, `PHOTO_UPDATE_INTERVAL_SEC`, `GALLERY_LIMIT` - параметры фото-галереи.
+- `PHOTO_DIR`, `PHOTO_CAPTURE_ONCE_PER_ID`, `PHOTO_UPDATE_INTERVAL_SEC`, `GALLERY_LIMIT` - параметры фото-галереи,
+- `RTSP_LOW_LATENCY_MODE`, `RTSP_DRAIN_GRABS` - уменьшение накопления задержки RTSP.
 
 3. Запуск сервера:
 

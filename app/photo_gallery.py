@@ -109,14 +109,19 @@ class PhotoGalleryService:
             raise ValueError("window must be one of: online, hour, day")
 
         ids = ids[: self.gallery_limit]
+        registry_map = self._load_registry(ids)
         items = []
         for global_id in ids:
             photo = self._pick_photo(global_id, cutoff)
+            reg = registry_map.get(global_id)
             item = {
                 "global_id": global_id,
                 "image_url": None,
                 "photo_ts": None,
                 "has_frontal_face": False,
+                "registered": reg is not None,
+                "display_name": (reg["display_name"] if reg else ""),
+                "note": (reg["note"] if reg else ""),
             }
             if photo is not None:
                 item["image_url"] = f"/captures/{photo['image_name']}"
@@ -124,6 +129,21 @@ class PhotoGalleryService:
                 item["has_frontal_face"] = True
             items.append(item)
         return {"window": window, "count": len(items), "items": items}
+
+    def _load_registry(self, ids: list[int]) -> dict[int, dict]:
+        if not ids:
+            return {}
+        placeholders = ",".join("?" for _ in ids)
+        query = (
+            f"SELECT global_id, display_name, note FROM person_registry "
+            f"WHERE global_id IN ({placeholders})"
+        )
+        with db_conn(self.db_path) as conn:
+            rows = conn.execute(query, tuple(ids)).fetchall()
+        out: dict[int, dict] = {}
+        for row in rows:
+            out[int(row[0])] = {"display_name": str(row[1]), "note": str(row[2])}
+        return out
 
     def _load_unique_ids_since(self, cutoff: datetime) -> list[int]:
         with db_conn(self.db_path) as conn:

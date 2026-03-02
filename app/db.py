@@ -84,6 +84,17 @@ def init_db(db_path: str) -> None:
             ON face_photos(global_id)
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS person_registry (
+                global_id INTEGER PRIMARY KEY,
+                display_name TEXT NOT NULL,
+                note TEXT NOT NULL DEFAULT '',
+                created_ts TEXT NOT NULL,
+                updated_ts TEXT NOT NULL
+            )
+            """
+        )
         conn.commit()
     finally:
         conn.close()

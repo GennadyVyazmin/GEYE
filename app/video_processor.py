@@ -1,5 +1,6 @@
 import threading
 import time
+import os
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -22,6 +23,8 @@ class VideoProcessor:
         frame_max_width: int,
         process_every_n_frames: int,
         jpeg_quality: int,
+        rtsp_low_latency_mode: bool,
+        rtsp_drain_grabs: int,
         analytics: AnalyticsService,
         gallery: PhotoGalleryService,
         reid: ReIDService,
@@ -32,6 +35,8 @@ class VideoProcessor:
         self.frame_max_width = max(320, frame_max_width)
         self.process_every_n_frames = max(1, process_every_n_frames)
         self.jpeg_quality = max(40, min(95, jpeg_quality))
+        self.rtsp_low_latency_mode = rtsp_low_latency_mode
+        self.rtsp_drain_grabs = max(0, rtsp_drain_grabs)
         self.analytics = analytics
         self.gallery = gallery
         self.reid = reid
@@ -58,6 +63,10 @@ class VideoProcessor:
             return self._last_jpeg
 
     def _run(self) -> None:
+        if self.rtsp_low_latency_mode:
+            os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
+                "rtsp_transport;tcp|fflags;nobuffer|flags;low_delay|max_delay;0"
+            )
         while not self._stop_event.is_set():
             cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
             if not cap.isOpened():
@@ -67,7 +76,7 @@ class VideoProcessor:
             frame_counter = 0
 
             while not self._stop_event.is_set():
-                ok, frame = cap.read()
+                ok, frame = self._read_latest_frame(cap)
                 if not ok:
                     break
                 frame_counter += 1
@@ -150,3 +159,16 @@ class VideoProcessor:
         scale = max_width / float(w)
         target_h = max(1, int(h * scale))
         return cv2.resize(frame, (max_width, target_h), interpolation=cv2.INTER_AREA)
+
+    def _read_latest_frame(self, cap: cv2.VideoCapture) -> tuple[bool, np.ndarray | None]:
+        # Grab several frames and decode only the latest to avoid RTSP lag buildup.
+        ok = cap.grab()
+        if not ok:
+            return False, None
+        for _ in range(self.rtsp_drain_grabs):
+            if not cap.grab():
+                break
+        ok, frame = cap.retrieve()
+        if not ok:
+            return False, None
+        return True, frame

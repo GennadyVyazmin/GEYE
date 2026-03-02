@@ -158,6 +158,7 @@ h2 {
   border-radius: 10px;
   overflow: hidden;
   background: #0b1220;
+  cursor: pointer;
 }
 
 .person-card img {
@@ -180,9 +181,84 @@ h2 {
   min-height: 130px;
 }
 
+.person-card.registered {
+  border-color: #16a34a;
+}
+
 .no-photo-text {
   color: #94a3b8;
   font-size: 13px;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.8);
+  display: grid;
+  place-items: center;
+  z-index: 1000;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-card {
+  width: min(460px, 92vw);
+  border: 1px solid #334155;
+  border-radius: 12px;
+  background: #0b1220;
+  padding: 12px;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.modal-head h3 {
+  margin: 0;
+}
+
+.icon-btn {
+  border: 1px solid #334155;
+  background: #111827;
+  color: #cbd5e1;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+}
+
+.modal-body {
+  display: grid;
+  gap: 8px;
+}
+
+.modal-photo {
+  width: 120px;
+  height: 120px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid #334155;
+}
+
+.modal-body input,
+.modal-body textarea {
+  width: 100%;
+  border: 1px solid #334155;
+  background: #111827;
+  color: #e5e7eb;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
 }
 
 .reset-btn {

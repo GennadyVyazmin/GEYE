@@ -75,6 +75,25 @@
       </section>
     </main>
 
+    <div id="register_modal" class="modal hidden">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h3 id="modal_title">Регистрация человека</h3>
+          <button id="modal_close" class="icon-btn" type="button">x</button>
+        </div>
+        <div class="modal-body">
+          <img id="modal_photo" class="modal-photo" alt="person" />
+          <label for="modal_name">Имя / метка</label>
+          <input id="modal_name" type="text" placeholder="Например: Иван Петров" />
+          <label for="modal_note">Комментарий</label>
+          <textarea id="modal_note" rows="3" placeholder="Доп. информация"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button id="modal_save" class="secondary-btn" type="button">Сохранить</button>
+        </div>
+      </div>
+    </div>
+
     <script>
       const videoImg = document.getElementById("video_img");
       const videoMode = document.getElementById("video_mode");
@@ -84,6 +103,14 @@
       const galleryGrid = document.getElementById("gallery_grid");
       const galleryInfo = document.getElementById("gallery_info");
       const galleryTabs = Array.from(document.querySelectorAll(".tab-btn"));
+      const modal = document.getElementById("register_modal");
+      const modalClose = document.getElementById("modal_close");
+      const modalSave = document.getElementById("modal_save");
+      const modalTitle = document.getElementById("modal_title");
+      const modalPhoto = document.getElementById("modal_photo");
+      const modalName = document.getElementById("modal_name");
+      const modalNote = document.getElementById("modal_note");
+      let selectedGlobalId = null;
       let currentGalleryWindow = "online";
       let snapshotTimer = null;
       let switchedToSnapshot = false;
@@ -133,21 +160,85 @@
           .map((item) => {
             if (item.image_url) {
               return `
-                <article class="person-card">
+                <article class="person-card ${item.registered ? "registered" : ""}" data-gid="${item.global_id}" data-image="${item.image_url}">
                   <img src="${item.image_url}" alt="G${item.global_id}" loading="lazy" />
-                  <div class="person-meta">G${item.global_id}</div>
+                  <div class="person-meta">G${item.global_id} ${item.display_name ? "• " + item.display_name : ""}</div>
                 </article>
               `;
             }
             return `
-              <article class="person-card no-photo">
+              <article class="person-card no-photo ${item.registered ? "registered" : ""}" data-gid="${item.global_id}" data-image="">
                 <div class="no-photo-text">Нет фото анфас</div>
-                <div class="person-meta">G${item.global_id}</div>
+                <div class="person-meta">G${item.global_id} ${item.display_name ? "• " + item.display_name : ""}</div>
               </article>
             `;
           })
           .join("");
       }
+
+      function openRegisterModal(globalId, imageUrl) {
+        selectedGlobalId = globalId;
+        modalTitle.textContent = "Регистрация G" + globalId;
+        modalPhoto.src = imageUrl || "";
+        modalPhoto.style.display = imageUrl ? "block" : "none";
+        modalName.value = "";
+        modalNote.value = "";
+        modal.classList.remove("hidden");
+
+        fetch("/api/people/" + globalId)
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            if (!data || !data.registered) return;
+            modalName.value = data.display_name || "";
+            modalNote.value = data.note || "";
+          })
+          .catch(() => {});
+      }
+
+      function closeRegisterModal() {
+        modal.classList.add("hidden");
+        selectedGlobalId = null;
+      }
+
+      galleryGrid.addEventListener("click", (e) => {
+        const card = e.target.closest(".person-card");
+        if (!card) return;
+        const gid = Number(card.dataset.gid);
+        if (Number.isNaN(gid)) return;
+        openRegisterModal(gid, card.dataset.image || "");
+      });
+
+      modalClose.addEventListener("click", closeRegisterModal);
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) closeRegisterModal();
+      });
+      modalSave.addEventListener("click", async () => {
+        if (selectedGlobalId === null) return;
+        const displayName = modalName.value.trim();
+        if (!displayName) {
+          alert("Введите имя/метку");
+          return;
+        }
+        try {
+          const res = await fetch("/api/people/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              global_id: selectedGlobalId,
+              display_name: displayName,
+              note: modalNote.value.trim(),
+            }),
+          });
+          if (!res.ok) {
+            alert("Не удалось сохранить");
+            return;
+          }
+          closeRegisterModal();
+          await refreshGallery();
+        } catch (_e) {
+          alert("Сервер недоступен");
+        }
+      });
 
       async function refreshGallery() {
         try {

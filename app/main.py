@@ -1,5 +1,6 @@
 import asyncio
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -10,7 +11,7 @@ from pydantic import BaseModel
 
 from .analytics import AnalyticsService
 from .config import settings
-from .db import init_db
+from .db import db_conn, init_db
 from .photo_gallery import PhotoGalleryService
 from .reid import ReIDService
 from .video_processor import VideoProcessor
@@ -62,6 +63,8 @@ processor = VideoProcessor(
     frame_max_width=settings.frame_max_width,
     process_every_n_frames=settings.process_every_n_frames,
     jpeg_quality=settings.jpeg_quality,
+    rtsp_low_latency_mode=settings.rtsp_low_latency_mode,
+    rtsp_drain_grabs=settings.rtsp_drain_grabs,
     analytics=analytics,
     gallery=gallery,
     reid=reid,
@@ -70,6 +73,12 @@ processor = VideoProcessor(
 
 class ReIDThresholdPayload(BaseModel):
     match_threshold: float
+
+
+class RegisterPersonPayload(BaseModel):
+    global_id: int
+    display_name: str
+    note: str = ""
 
 
 @app.on_event("startup")
@@ -119,6 +128,51 @@ async def get_gallery(window: str = "online"):
         raise HTTPException(status_code=400, detail="window must be online|hour|day")
     online_ids = analytics.get_online_ids()
     return JSONResponse(gallery.list_people(window=window, online_ids=online_ids))
+
+
+@app.get("/api/people/{global_id}")
+async def get_person(global_id: int):
+    with db_conn(settings.db_path) as conn:
+        row = conn.execute(
+            """
+            SELECT global_id, display_name, note, created_ts, updated_ts
+            FROM person_registry
+            WHERE global_id = ?
+            """,
+            (global_id,),
+        ).fetchone()
+    if row is None:
+        return {"registered": False, "global_id": global_id}
+    return {
+        "registered": True,
+        "global_id": int(row[0]),
+        "display_name": str(row[1]),
+        "note": str(row[2]),
+        "created_ts": str(row[3]),
+        "updated_ts": str(row[4]),
+    }
+
+
+@app.post("/api/people/register")
+async def register_person(payload: RegisterPersonPayload):
+    name = payload.display_name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="display_name is required")
+    now = datetime.now(timezone.utc).isoformat()
+    with db_conn(settings.db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO person_registry (global_id, display_name, note, created_ts, updated_ts)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(global_id) DO UPDATE SET
+                display_name=excluded.display_name,
+                note=excluded.note,
+                updated_ts=excluded.updated_ts
+            """,
+            (payload.global_id, name, payload.note.strip(), now, now),
+        )
+        conn.commit()
+    return {"status": "ok", "global_id": payload.global_id, "display_name": name}
 
 
 @app.get("/health")
