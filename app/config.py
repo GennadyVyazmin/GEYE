@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     line_y_ratio: float = 0.55
     crossing_debounce_sec: float = 2.0
     reid_match_threshold: float = 0.72
-    reid_max_absence_sec: float = 300.0
+    reid_max_absence_sec: float = 86400.0
     track_ttl_sec: float = 3.0
     db_path: str = "analytics.db"
 
