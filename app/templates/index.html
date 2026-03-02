@@ -16,6 +16,9 @@
 
       <section class="stats-card">
         <h2>Статистика</h2>
+        <button id="reset_btn" class="reset-btn" type="button">
+          Сбросить счетчики и треки
+        </button>
         <div class="stats-grid">
           <div class="stat">
             <span class="label">Сейчас в кадре</span>
@@ -77,6 +80,23 @@
       }
       setInterval(refreshStats, 2000);
       refreshStats();
+
+      document.getElementById("reset_btn").addEventListener("click", async () => {
+        const ok = window.confirm(
+          "Сбросить счетчики, активные треки и очистить события в базе?"
+        );
+        if (!ok) return;
+        try {
+          const res = await fetch("/api/reset", { method: "POST" });
+          if (!res.ok) {
+            alert("Ошибка сброса");
+            return;
+          }
+          await refreshStats();
+        } catch (_e) {
+          alert("Сервер недоступен");
+        }
+      });
     </script>
   </body>
 </html>

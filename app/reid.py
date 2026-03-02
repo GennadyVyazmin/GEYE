@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+import threading
 
 import cv2
 import numpy as np
@@ -23,6 +24,7 @@ class ReIDService:
         self.match_threshold = match_threshold
         self.max_absence = timedelta(seconds=max_absence_sec)
         self.track_ttl = timedelta(seconds=track_ttl_sec)
+        self._lock = threading.Lock()
         self._next_global_id = 1
         self._track_to_global: dict[int, int] = {}
         self._track_last_seen: dict[int, datetime] = {}
@@ -35,26 +37,35 @@ class ReIDService:
         frame_bgr: np.ndarray,
         now: datetime,
     ) -> int:
-        self._cleanup_tracks(now)
-        if track_id in self._track_to_global:
-            global_id = self._track_to_global[track_id]
+        embedding = self._extract_embedding(frame_bgr, bbox_xyxy)
+        with self._lock:
+            self._cleanup_tracks(now)
+            if track_id in self._track_to_global:
+                global_id = self._track_to_global[track_id]
+                self._track_last_seen[track_id] = now
+                self._update_identity(global_id, embedding, now)
+                return global_id
+
+            global_id = self._match_identity(embedding, now)
+            if global_id is None:
+                global_id = self._next_global_id
+                self._next_global_id += 1
+                self._identities[global_id] = IdentityState(
+                    embedding=embedding, last_seen=now
+                )
+            else:
+                self._update_identity(global_id, embedding, now)
+
+            self._track_to_global[track_id] = global_id
             self._track_last_seen[track_id] = now
-            embedding = self._extract_embedding(frame_bgr, bbox_xyxy)
-            self._update_identity(global_id, embedding, now)
             return global_id
 
-        embedding = self._extract_embedding(frame_bgr, bbox_xyxy)
-        global_id = self._match_identity(embedding, now)
-        if global_id is None:
-            global_id = self._next_global_id
-            self._next_global_id += 1
-            self._identities[global_id] = IdentityState(embedding=embedding, last_seen=now)
-        else:
-            self._update_identity(global_id, embedding, now)
-
-        self._track_to_global[track_id] = global_id
-        self._track_last_seen[track_id] = now
-        return global_id
+    def reset_state(self) -> None:
+        with self._lock:
+            self._next_global_id = 1
+            self._track_to_global.clear()
+            self._track_last_seen.clear()
+            self._identities.clear()
 
     def _cleanup_tracks(self, now: datetime) -> None:
         stale = [

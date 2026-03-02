@@ -28,6 +28,20 @@ class AnalyticsService:
         self._last_center_y_norm_by_global: dict[int, float] = {}
         self._last_crossing_by_global: dict[int, datetime] = {}
 
+    def reset_state(self, clear_db: bool = True) -> None:
+        with self._lock:
+            self._last_db_write_by_global.clear()
+            self._last_seen_by_global.clear()
+            self._last_center_y_norm_by_global.clear()
+            self._last_crossing_by_global.clear()
+
+        if not clear_db:
+            return
+        with db_conn(self.db_path) as conn:
+            conn.execute("DELETE FROM sightings")
+            conn.execute("DELETE FROM crossings")
+            conn.commit()
+
     def register_seen(self, global_id: int, now: datetime) -> None:
         with self._lock:
             self._last_seen_by_global[global_id] = now

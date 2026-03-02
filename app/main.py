@@ -69,6 +69,13 @@ async def stats():
     return JSONResponse(analytics.get_stats())
 
 
+@app.post("/api/reset")
+async def reset():
+    analytics.reset_state(clear_db=True)
+    reid.reset_state()
+    return {"status": "ok", "message": "counters, tracks, and DB events reset"}
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "session_id": session_id}

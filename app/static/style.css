@@ -49,6 +49,7 @@ h2 {
 .stats-grid {
   display: grid;
   gap: 12px;
+  margin-top: 12px;
 }
 
 .stat {
@@ -73,6 +74,21 @@ h2 {
 
 .muted {
   color: var(--muted);
+}
+
+.reset-btn {
+  width: 100%;
+  border: 1px solid #7f1d1d;
+  background: #3f0a0a;
+  color: #fecaca;
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.reset-btn:hover {
+  background: #4d1010;
 }
 
 @media (max-width: 960px) {
