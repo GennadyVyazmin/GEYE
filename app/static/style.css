@@ -76,6 +76,54 @@ h2 {
   color: var(--muted);
 }
 
+.threshold-panel {
+  border: 1px solid #263246;
+  border-radius: 10px;
+  padding: 10px;
+  background: #0b1220;
+  margin-bottom: 12px;
+}
+
+.threshold-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.threshold-row:last-child {
+  margin-bottom: 0;
+}
+
+#threshold_range {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+#threshold_input {
+  width: 110px;
+  background: #111827;
+  color: var(--text);
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.secondary-btn {
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.secondary-btn:hover {
+  background: #273449;
+}
+
 .reset-btn {
   width: 100%;
   border: 1px solid #7f1d1d;

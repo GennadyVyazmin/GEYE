@@ -30,6 +30,16 @@ class ReIDService:
         self._track_last_seen: dict[int, datetime] = {}
         self._identities: dict[int, IdentityState] = {}
 
+    def get_match_threshold(self) -> float:
+        with self._lock:
+            return self.match_threshold
+
+    def set_match_threshold(self, value: float) -> float:
+        value = max(0.0, min(1.0, value))
+        with self._lock:
+            self.match_threshold = value
+            return self.match_threshold
+
     def assign_global_id(
         self,
         track_id: int,

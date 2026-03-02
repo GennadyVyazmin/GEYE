@@ -2,10 +2,11 @@ import asyncio
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
 from .analytics import AnalyticsService
 from .config import settings
@@ -51,6 +52,10 @@ processor = VideoProcessor(
 )
 
 
+class ReIDThresholdPayload(BaseModel):
+    match_threshold: float
+
+
 @app.on_event("startup")
 def on_startup() -> None:
     processor.start()
@@ -76,6 +81,19 @@ async def reset():
     analytics.reset_state(clear_db=True)
     reid.reset_state()
     return {"status": "ok", "message": "counters, tracks, and DB events reset"}
+
+
+@app.get("/api/reid")
+async def get_reid():
+    return {"match_threshold": reid.get_match_threshold()}
+
+
+@app.post("/api/reid")
+async def set_reid(payload: ReIDThresholdPayload):
+    if payload.match_threshold < 0.0 or payload.match_threshold > 1.0:
+        raise HTTPException(status_code=400, detail="match_threshold must be in [0.0, 1.0]")
+    value = reid.set_match_threshold(payload.match_threshold)
+    return {"status": "ok", "match_threshold": value}
 
 
 @app.get("/health")

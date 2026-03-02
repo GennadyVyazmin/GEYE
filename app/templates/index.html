@@ -16,6 +16,33 @@
 
       <section class="stats-card">
         <h2>Статистика</h2>
+        <div class="threshold-panel">
+          <div class="threshold-row">
+            <label for="threshold_range">Порог ReID</label>
+            <span id="threshold_current" class="muted">текущее: -</span>
+          </div>
+          <input
+            id="threshold_range"
+            type="range"
+            min="0.50"
+            max="0.95"
+            step="0.01"
+            value="0.72"
+          />
+          <div class="threshold-row">
+            <input
+              id="threshold_input"
+              type="number"
+              min="0.50"
+              max="0.95"
+              step="0.01"
+              value="0.72"
+            />
+            <button id="threshold_apply" class="secondary-btn" type="button">
+              Применить
+            </button>
+          </div>
+        </div>
         <button id="reset_btn" class="reset-btn" type="button">
           Сбросить счетчики и треки
         </button>
@@ -42,6 +69,9 @@
     <script>
       const videoImg = document.getElementById("video_img");
       const videoMode = document.getElementById("video_mode");
+      const thresholdRange = document.getElementById("threshold_range");
+      const thresholdInput = document.getElementById("threshold_input");
+      const thresholdCurrent = document.getElementById("threshold_current");
       let snapshotTimer = null;
       let switchedToSnapshot = false;
 
@@ -80,6 +110,55 @@
       }
       setInterval(refreshStats, 2000);
       refreshStats();
+
+      async function loadThreshold() {
+        try {
+          const res = await fetch("/api/reid");
+          if (!res.ok) return;
+          const data = await res.json();
+          const v = Number(data.match_threshold).toFixed(2);
+          thresholdRange.value = v;
+          thresholdInput.value = v;
+          thresholdCurrent.textContent = "текущее: " + v;
+        } catch (_e) {
+          // ignore
+        }
+      }
+
+      thresholdRange.addEventListener("input", () => {
+        thresholdInput.value = thresholdRange.value;
+      });
+
+      thresholdInput.addEventListener("input", () => {
+        const v = Number(thresholdInput.value);
+        if (!Number.isNaN(v)) {
+          thresholdRange.value = String(v);
+        }
+      });
+
+      document.getElementById("threshold_apply").addEventListener("click", async () => {
+        const value = Number(thresholdInput.value);
+        if (Number.isNaN(value) || value < 0.5 || value > 0.95) {
+          alert("Введите значение от 0.50 до 0.95");
+          return;
+        }
+        try {
+          const res = await fetch("/api/reid", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ match_threshold: value }),
+          });
+          if (!res.ok) {
+            alert("Не удалось применить порог");
+            return;
+          }
+          await loadThreshold();
+        } catch (_e) {
+          alert("Сервер недоступен");
+        }
+      });
+
+      loadThreshold();
 
       document.getElementById("reset_btn").addEventListener("click", async () => {
         const ok = window.confirm(
