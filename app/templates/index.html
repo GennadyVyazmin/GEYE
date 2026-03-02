@@ -10,7 +10,8 @@
     <main class="layout">
       <section class="video-card">
         <h1>Видеоаналитика зала</h1>
-        <img class="video" src="/video_feed" alt="Live feed" />
+        <img id="video_img" class="video" src="/video_feed" alt="Live feed" />
+        <p id="video_mode" class="muted">Режим видео: stream</p>
       </section>
 
       <section class="stats-card">
@@ -36,6 +37,30 @@
     </main>
 
     <script>
+      const videoImg = document.getElementById("video_img");
+      const videoMode = document.getElementById("video_mode");
+      let snapshotTimer = null;
+      let switchedToSnapshot = false;
+
+      function startSnapshotFallback() {
+        if (switchedToSnapshot) return;
+        switchedToSnapshot = true;
+        videoMode.textContent = "Режим видео: snapshot fallback";
+        if (snapshotTimer) clearInterval(snapshotTimer);
+        snapshotTimer = setInterval(() => {
+          videoImg.src = "/frame.jpg?t=" + Date.now();
+        }, 350);
+      }
+
+      videoImg.addEventListener("error", startSnapshotFallback);
+
+      // If stream doesn't render in a few seconds (typical Firefox issue), fallback.
+      setTimeout(() => {
+        if (videoImg.naturalWidth === 0 || videoImg.naturalHeight === 0) {
+          startSnapshotFallback();
+        }
+      }, 5000);
+
       async function refreshStats() {
         try {
           const res = await fetch("/api/stats");
