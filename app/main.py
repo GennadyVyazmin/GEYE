@@ -134,6 +134,20 @@ async def reset():
     return {"status": "ok", "message": "counters, tracks, and DB events reset"}
 
 
+@app.post("/api/reset-all")
+async def reset_all():
+    analytics.reset_state(clear_db=True)
+    gallery.reset_state(clear_files=True)
+    with db_conn(settings.db_path) as conn:
+        conn.execute("DELETE FROM person_registry")
+        conn.commit()
+    reid.reset_state(reset_counter=True, start_global_id=1)
+    return {
+        "status": "ok",
+        "message": "full reset completed (events, registry, tracks, global_id counter)",
+    }
+
+
 @app.get("/api/reid")
 async def get_reid():
     return {"match_threshold": reid.get_match_threshold()}

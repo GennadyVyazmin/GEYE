@@ -72,6 +72,9 @@
         <button id="reset_btn" class="reset-btn" type="button">
           Сбросить счетчики и треки
         </button>
+        <button id="reset_all_btn" class="reset-all-btn" type="button">
+          Полный сброс (все базы + G-ID с 1)
+        </button>
         <div class="stats-grid">
           <div class="stat">
             <span class="label">Сейчас в кадре</span>
@@ -395,6 +398,25 @@
           const res = await fetch("/api/reset", { method: "POST" });
           if (!res.ok) {
             alert("Ошибка сброса");
+            return;
+          }
+          await refreshStats();
+          await refreshGallery();
+        } catch (_e) {
+          alert("Сервер недоступен");
+        }
+      });
+      document.getElementById("reset_all_btn").addEventListener("click", async () => {
+        const ok = window.confirm(
+          "Полный сброс удалит события, фото, регистрацию людей и начнет G-ID снова с 1. Продолжить?"
+        );
+        if (!ok) return;
+        const ok2 = window.confirm("Подтвердите полный сброс еще раз.");
+        if (!ok2) return;
+        try {
+          const res = await fetch("/api/reset-all", { method: "POST" });
+          if (!res.ok) {
+            alert("Ошибка полного сброса");
             return;
           }
           await refreshStats();

@@ -21,6 +21,7 @@ MVP-сервер для:
   - `unique_last_24h`,
   - список текущих `global_id`.
 - `POST /api/reset` - сброс счетчиков, треков и очистка событий в БД.
+- `POST /api/reset-all` - полный сброс: очистка событий/фото/регистрации и сброс счетчика `global_id` к 1.
 - `GET /api/gallery?window=online|hour|day` - фото уникальных людей (приоритет на лицо анфас).
 - `POST /api/people/register` и `GET /api/people/{global_id}` - ручная регистрация человека по `G`-ID.
 
