@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GEYE Video Analytics</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="layout">
+      <section class="video-card">
+        <h1>Видеоаналитика зала</h1>
+        <img class="video" src="/video_feed" alt="Live feed" />
+      </section>
+
+      <section class="stats-card">
+        <h2>Статистика</h2>
+        <div class="stats-grid">
+          <div class="stat">
+            <span class="label">Сейчас в кадре</span>
+            <span id="online_count" class="value">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">Уникальных за час</span>
+            <span id="unique_hour" class="value">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">Уникальных за 24 часа</span>
+            <span id="unique_day" class="value">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">Входов за час</span>
+            <span id="entries_hour" class="value">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">Выходов за час</span>
+            <span id="exits_hour" class="value">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">Входов за 24 часа</span>
+            <span id="entries_day" class="value">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">Выходов за 24 часа</span>
+            <span id="exits_day" class="value">0</span>
+          </div>
+        </div>
+        <p class="muted">
+          Активные ID: <span id="global_ids">-</span>
+        </p>
+      </section>
+    </main>
+
+    <script>
+      async function refreshStats() {
+        try {
+          const res = await fetch("/api/stats");
+          if (!res.ok) return;
+          const data = await res.json();
+          document.getElementById("online_count").textContent = data.online_count;
+          document.getElementById("unique_hour").textContent = data.unique_last_hour;
+          document.getElementById("unique_day").textContent = data.unique_last_24h;
+          document.getElementById("entries_hour").textContent = data.entries_last_hour;
+          document.getElementById("exits_hour").textContent = data.exits_last_hour;
+          document.getElementById("entries_day").textContent = data.entries_last_24h;
+          document.getElementById("exits_day").textContent = data.exits_last_24h;
+          document.getElementById("global_ids").textContent =
+            data.online_global_ids.length > 0 ? data.online_global_ids.join(", ") : "-";
+        } catch (_e) {
+          // ignore network jitter
+        }
+      }
+      setInterval(refreshStats, 2000);
+      refreshStats();
+    </script>
+  </body>
+</html>
