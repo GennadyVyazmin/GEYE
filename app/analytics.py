@@ -11,6 +11,7 @@ class AnalyticsService:
         session_id: str,
         min_db_event_interval_sec: float,
         online_ttl_sec: float,
+        enable_line_crossing: bool,
         line_y_ratio: float,
         crossing_debounce_sec: float,
     ) -> None:
@@ -18,6 +19,7 @@ class AnalyticsService:
         self.session_id = session_id
         self.min_db_event_interval = timedelta(seconds=min_db_event_interval_sec)
         self.online_ttl = timedelta(seconds=online_ttl_sec)
+        self.enable_line_crossing = enable_line_crossing
         self.crossing_debounce = timedelta(seconds=crossing_debounce_sec)
         self.line_y_ratio = max(0.05, min(0.95, line_y_ratio))
         self._lock = threading.Lock()
@@ -47,6 +49,8 @@ class AnalyticsService:
     def register_position(
         self, global_id: int, center_y_px: float, frame_height_px: int, now: datetime
     ) -> str | None:
+        if not self.enable_line_crossing:
+            return None
         if frame_height_px <= 0:
             return None
         center_norm = center_y_px / float(frame_height_px)
@@ -103,38 +107,44 @@ class AnalyticsService:
                 """,
                 (day_ago.isoformat(),),
             ).fetchone()
-            in_hour_row = conn.execute(
-                """
-                SELECT COUNT(*)
-                FROM crossings
-                WHERE ts >= ? AND direction = 'in'
-                """,
-                (hour_ago.isoformat(),),
-            ).fetchone()
-            out_hour_row = conn.execute(
-                """
-                SELECT COUNT(*)
-                FROM crossings
-                WHERE ts >= ? AND direction = 'out'
-                """,
-                (hour_ago.isoformat(),),
-            ).fetchone()
-            in_day_row = conn.execute(
-                """
-                SELECT COUNT(*)
-                FROM crossings
-                WHERE ts >= ? AND direction = 'in'
-                """,
-                (day_ago.isoformat(),),
-            ).fetchone()
-            out_day_row = conn.execute(
-                """
-                SELECT COUNT(*)
-                FROM crossings
-                WHERE ts >= ? AND direction = 'out'
-                """,
-                (day_ago.isoformat(),),
-            ).fetchone()
+            if self.enable_line_crossing:
+                in_hour_row = conn.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM crossings
+                    WHERE ts >= ? AND direction = 'in'
+                    """,
+                    (hour_ago.isoformat(),),
+                ).fetchone()
+                out_hour_row = conn.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM crossings
+                    WHERE ts >= ? AND direction = 'out'
+                    """,
+                    (hour_ago.isoformat(),),
+                ).fetchone()
+                in_day_row = conn.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM crossings
+                    WHERE ts >= ? AND direction = 'in'
+                    """,
+                    (day_ago.isoformat(),),
+                ).fetchone()
+                out_day_row = conn.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM crossings
+                    WHERE ts >= ? AND direction = 'out'
+                    """,
+                    (day_ago.isoformat(),),
+                ).fetchone()
+            else:
+                in_hour_row = (0,)
+                out_hour_row = (0,)
+                in_day_row = (0,)
+                out_day_row = (0,)
 
         online_ids: list[int] = []
         with self._lock:
@@ -144,6 +154,7 @@ class AnalyticsService:
 
         return {
             "timestamp_utc": now.isoformat(),
+            "line_crossing_enabled": self.enable_line_crossing,
             "line_y_ratio": self.line_y_ratio,
             "online_count": len(online_ids),
             "online_global_ids": sorted(online_ids),

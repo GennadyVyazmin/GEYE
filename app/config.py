@@ -12,10 +12,11 @@ class Settings(BaseSettings):
     detector_iou: float = 0.5
     min_db_event_interval_sec: float = 2.0
     online_ttl_sec: float = 2.0
+    enable_line_crossing: bool = False
     line_y_ratio: float = 0.55
     crossing_debounce_sec: float = 2.0
-    reid_match_threshold: float = 0.90
-    reid_max_absence_sec: float = 1800.0
+    reid_match_threshold: float = 0.85
+    reid_max_absence_sec: float = 300.0
     track_ttl_sec: float = 3.0
     db_path: str = "analytics.db"
 

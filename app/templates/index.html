@@ -28,22 +28,6 @@
             <span class="label">Уникальных за 24 часа</span>
             <span id="unique_day" class="value">0</span>
           </div>
-          <div class="stat">
-            <span class="label">Входов за час</span>
-            <span id="entries_hour" class="value">0</span>
-          </div>
-          <div class="stat">
-            <span class="label">Выходов за час</span>
-            <span id="exits_hour" class="value">0</span>
-          </div>
-          <div class="stat">
-            <span class="label">Входов за 24 часа</span>
-            <span id="entries_day" class="value">0</span>
-          </div>
-          <div class="stat">
-            <span class="label">Выходов за 24 часа</span>
-            <span id="exits_day" class="value">0</span>
-          </div>
         </div>
         <p class="muted">
           Активные ID: <span id="global_ids">-</span>
@@ -60,10 +44,6 @@
           document.getElementById("online_count").textContent = data.online_count;
           document.getElementById("unique_hour").textContent = data.unique_last_hour;
           document.getElementById("unique_day").textContent = data.unique_last_24h;
-          document.getElementById("entries_hour").textContent = data.entries_last_hour;
-          document.getElementById("exits_hour").textContent = data.exits_last_hour;
-          document.getElementById("entries_day").textContent = data.entries_last_24h;
-          document.getElementById("exits_day").textContent = data.exits_last_24h;
           document.getElementById("global_ids").textContent =
             data.online_global_ids.length > 0 ? data.online_global_ids.join(", ") : "-";
         } catch (_e) {

@@ -27,6 +27,7 @@ analytics = AnalyticsService(
     session_id=session_id,
     min_db_event_interval_sec=settings.min_db_event_interval_sec,
     online_ttl_sec=settings.online_ttl_sec,
+    enable_line_crossing=settings.enable_line_crossing,
     line_y_ratio=settings.line_y_ratio,
     crossing_debounce_sec=settings.crossing_debounce_sec,
 )

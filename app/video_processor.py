@@ -71,8 +71,9 @@ class VideoProcessor:
                 result = results[0]
                 rendered = frame.copy()
                 frame_h, frame_w = rendered.shape[:2]
-                line_y = int(frame_h * self.analytics.line_y_ratio)
-                cv2.line(rendered, (0, line_y), (frame_w, line_y), (0, 180, 255), 2)
+                if self.analytics.enable_line_crossing:
+                    line_y = int(frame_h * self.analytics.line_y_ratio)
+                    cv2.line(rendered, (0, line_y), (frame_w, line_y), (0, 180, 255), 2)
 
                 now = datetime.now(timezone.utc)
                 if result.boxes is not None and result.boxes.id is not None:
@@ -87,13 +88,14 @@ class VideoProcessor:
                             now=now,
                         )
                         self.analytics.register_seen(global_id, now)
-                        center_y = (y1 + y2) / 2.0
-                        self.analytics.register_position(
-                            global_id=global_id,
-                            center_y_px=center_y,
-                            frame_height_px=frame_h,
-                            now=now,
-                        )
+                        if self.analytics.enable_line_crossing:
+                            center_y = (y1 + y2) / 2.0
+                            self.analytics.register_position(
+                                global_id=global_id,
+                                center_y_px=center_y,
+                                frame_height_px=frame_h,
+                                now=now,
+                            )
 
                         cv2.rectangle(rendered, (x1, y1), (x2, y2), (80, 220, 120), 2)
                         label = f"G{global_id} T{track_id}"
