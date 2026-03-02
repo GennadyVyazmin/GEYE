@@ -16,6 +16,7 @@ class PhotoGalleryService:
         db_path: str,
         session_id: str,
         capture_dir: Path,
+        photo_capture_once_per_id: bool,
         photo_update_interval_sec: float,
         gallery_limit: int,
     ) -> None:
@@ -23,11 +24,13 @@ class PhotoGalleryService:
         self.session_id = session_id
         self.capture_dir = capture_dir
         self.capture_dir.mkdir(parents=True, exist_ok=True)
+        self.photo_capture_once_per_id = photo_capture_once_per_id
         self.photo_update_interval = timedelta(seconds=max(0.5, photo_update_interval_sec))
         self.gallery_limit = max(1, gallery_limit)
         self._lock = threading.Lock()
         self._last_saved_by_global: dict[int, datetime] = {}
         self._best_score_by_global: dict[int, float] = {}
+        self._has_photo_by_global: set[int] = set()
 
         cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
         self.face_detector = cv2.CascadeClassifier(cascade_path)
@@ -36,6 +39,7 @@ class PhotoGalleryService:
         with self._lock:
             self._last_saved_by_global.clear()
             self._best_score_by_global.clear()
+            self._has_photo_by_global.clear()
         if clear_files:
             for p in self.capture_dir.glob("*.jpg"):
                 try:
@@ -59,6 +63,8 @@ class PhotoGalleryService:
             return
 
         with self._lock:
+            if self.photo_capture_once_per_id and global_id in self._has_photo_by_global:
+                return
             last_saved = self._last_saved_by_global.get(global_id)
             best_score = self._best_score_by_global.get(global_id, 0.0)
             if last_saved is not None and (now - last_saved) < self.photo_update_interval:
@@ -84,6 +90,8 @@ class PhotoGalleryService:
                 (now.isoformat(), self.session_id, global_id, filename, float(score)),
             )
             conn.commit()
+        with self._lock:
+            self._has_photo_by_global.add(global_id)
 
     def list_people(self, window: str, online_ids: list[int]) -> dict:
         now = datetime.now(timezone.utc)

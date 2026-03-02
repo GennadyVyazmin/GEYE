@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     count_confirm_min_age_sec: float = 1.5
     online_ttl_sec: float = 2.0
     photo_dir: str = "captures"
+    photo_capture_once_per_id: bool = True
     photo_update_interval_sec: float = 4.0
     gallery_limit: int = 120
     enable_line_crossing: bool = False
