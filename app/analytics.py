@@ -10,6 +10,8 @@ class AnalyticsService:
         db_path: str,
         session_id: str,
         min_db_event_interval_sec: float,
+        count_confirm_min_hits: int,
+        count_confirm_min_age_sec: float,
         online_ttl_sec: float,
         enable_line_crossing: bool,
         line_y_ratio: float,
@@ -18,6 +20,8 @@ class AnalyticsService:
         self.db_path = db_path
         self.session_id = session_id
         self.min_db_event_interval = timedelta(seconds=min_db_event_interval_sec)
+        self.count_confirm_min_hits = max(1, count_confirm_min_hits)
+        self.count_confirm_min_age = timedelta(seconds=max(0.0, count_confirm_min_age_sec))
         self.online_ttl = timedelta(seconds=online_ttl_sec)
         self.enable_line_crossing = enable_line_crossing
         self.crossing_debounce = timedelta(seconds=crossing_debounce_sec)
@@ -25,6 +29,9 @@ class AnalyticsService:
         self._lock = threading.Lock()
         self._last_db_write_by_global: dict[int, datetime] = {}
         self._last_seen_by_global: dict[int, datetime] = {}
+        self._first_seen_by_global: dict[int, datetime] = {}
+        self._seen_hits_by_global: dict[int, int] = {}
+        self._confirmed_globals: set[int] = set()
         self._last_center_y_norm_by_global: dict[int, float] = {}
         self._last_crossing_by_global: dict[int, datetime] = {}
 
@@ -32,6 +39,9 @@ class AnalyticsService:
         with self._lock:
             self._last_db_write_by_global.clear()
             self._last_seen_by_global.clear()
+            self._first_seen_by_global.clear()
+            self._seen_hits_by_global.clear()
+            self._confirmed_globals.clear()
             self._last_center_y_norm_by_global.clear()
             self._last_crossing_by_global.clear()
 
@@ -43,13 +53,32 @@ class AnalyticsService:
             conn.commit()
 
     def register_seen(self, global_id: int, now: datetime) -> None:
+        should_write = False
         with self._lock:
             self._last_seen_by_global[global_id] = now
+            self._seen_hits_by_global[global_id] = self._seen_hits_by_global.get(global_id, 0) + 1
+            first_seen = self._first_seen_by_global.get(global_id)
+            if first_seen is None:
+                first_seen = now
+                self._first_seen_by_global[global_id] = now
+
+            is_confirmed = global_id in self._confirmed_globals
+            if not is_confirmed:
+                enough_hits = self._seen_hits_by_global[global_id] >= self.count_confirm_min_hits
+                enough_age = (now - first_seen) >= self.count_confirm_min_age
+                if enough_hits and enough_age:
+                    self._confirmed_globals.add(global_id)
+                else:
+                    return
+
             prev = self._last_db_write_by_global.get(global_id)
             if prev is not None and (now - prev) < self.min_db_event_interval:
                 return
             self._last_db_write_by_global[global_id] = now
+            should_write = True
 
+        if not should_write:
+            return
         with db_conn(self.db_path) as conn:
             conn.execute(
                 """

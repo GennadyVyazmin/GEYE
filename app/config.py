@@ -15,11 +15,13 @@ class Settings(BaseSettings):
     process_every_n_frames: int = 2
     jpeg_quality: int = 75
     min_db_event_interval_sec: float = 2.0
+    count_confirm_min_hits: int = 3
+    count_confirm_min_age_sec: float = 1.5
     online_ttl_sec: float = 2.0
     enable_line_crossing: bool = False
     line_y_ratio: float = 0.55
     crossing_debounce_sec: float = 2.0
-    reid_match_threshold: float = 0.80
+    reid_match_threshold: float = 0.78
     reid_max_absence_sec: float = 300.0
     track_ttl_sec: float = 3.0
     db_path: str = "analytics.db"

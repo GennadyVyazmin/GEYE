@@ -54,12 +54,19 @@ cp .env.example .env
 Ключевые настройки:
 - `ENABLE_LINE_CROSSING=false` - пока отключает логику вход/выход,
 - `REID_MATCH_THRESHOLD` - строгость сопоставления при повторном входе,
-- `REID_MAX_ABSENCE_SEC` - как долго хранить профиль человека для повторной идентификации.
+- `REID_MAX_ABSENCE_SEC` - как долго хранить профиль человека для повторной идентификации,
+- `COUNT_CONFIRM_MIN_HITS` и `COUNT_CONFIRM_MIN_AGE_SEC` - подтверждение нового гостя перед записью в статистику.
 
 3. Запуск сервера:
 
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Тихий запуск (только warning/error, без access-логов):
+
+```bash
+./run.sh
 ```
 
 4. Открыть в браузере:
