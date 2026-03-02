@@ -35,6 +35,16 @@ class AnalyticsService:
         self._last_center_y_norm_by_global: dict[int, float] = {}
         self._last_crossing_by_global: dict[int, datetime] = {}
 
+    def get_confirm_min_age_sec(self) -> float:
+        with self._lock:
+            return self.count_confirm_min_age.total_seconds()
+
+    def set_confirm_min_age_sec(self, value: float) -> float:
+        value = max(0.0, min(20.0, float(value)))
+        with self._lock:
+            self.count_confirm_min_age = timedelta(seconds=value)
+            return self.count_confirm_min_age.total_seconds()
+
     def reset_state(self, clear_db: bool = True) -> None:
         with self._lock:
             self._last_db_write_by_global.clear()
@@ -205,6 +215,7 @@ class AnalyticsService:
             "timestamp_utc": now.isoformat(),
             "line_crossing_enabled": self.enable_line_crossing,
             "line_y_ratio": self.line_y_ratio,
+            "count_confirm_min_age_sec": self.get_confirm_min_age_sec(),
             "online_count": len(online_ids),
             "online_global_ids": sorted(online_ids),
             "unique_last_hour": int(hour_row[0] or 0),

@@ -75,6 +75,10 @@ class ReIDThresholdPayload(BaseModel):
     match_threshold: float
 
 
+class ConfirmAgePayload(BaseModel):
+    min_age_sec: float
+
+
 class RegisterPersonPayload(BaseModel):
     global_id: int
     display_name: str
@@ -120,6 +124,19 @@ async def set_reid(payload: ReIDThresholdPayload):
         raise HTTPException(status_code=400, detail="match_threshold must be in [0.0, 1.0]")
     value = reid.set_match_threshold(payload.match_threshold)
     return {"status": "ok", "match_threshold": value}
+
+
+@app.get("/api/confirm-age")
+async def get_confirm_age():
+    return {"min_age_sec": analytics.get_confirm_min_age_sec()}
+
+
+@app.post("/api/confirm-age")
+async def set_confirm_age(payload: ConfirmAgePayload):
+    if payload.min_age_sec < 0.0 or payload.min_age_sec > 20.0:
+        raise HTTPException(status_code=400, detail="min_age_sec must be in [0.0, 20.0]")
+    value = analytics.set_confirm_min_age_sec(payload.min_age_sec)
+    return {"status": "ok", "min_age_sec": value}
 
 
 @app.get("/api/gallery")

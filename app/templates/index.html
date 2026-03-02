@@ -42,6 +42,32 @@
               Применить
             </button>
           </div>
+
+          <div class="threshold-row">
+            <label for="confirm_age_range">Подтверждение трека (сек)</label>
+            <span id="confirm_age_current" class="muted">текущее: -</span>
+          </div>
+          <input
+            id="confirm_age_range"
+            type="range"
+            min="0.0"
+            max="5.0"
+            step="0.1"
+            value="1.5"
+          />
+          <div class="threshold-row">
+            <input
+              id="confirm_age_input"
+              type="number"
+              min="0.0"
+              max="5.0"
+              step="0.1"
+              value="1.5"
+            />
+            <button id="confirm_age_apply" class="secondary-btn" type="button">
+              Применить
+            </button>
+          </div>
         </div>
         <button id="reset_btn" class="reset-btn" type="button">
           Сбросить счетчики и треки
@@ -100,6 +126,9 @@
       const thresholdRange = document.getElementById("threshold_range");
       const thresholdInput = document.getElementById("threshold_input");
       const thresholdCurrent = document.getElementById("threshold_current");
+      const confirmAgeRange = document.getElementById("confirm_age_range");
+      const confirmAgeInput = document.getElementById("confirm_age_input");
+      const confirmAgeCurrent = document.getElementById("confirm_age_current");
       const galleryGrid = document.getElementById("gallery_grid");
       const galleryInfo = document.getElementById("gallery_info");
       const galleryTabs = Array.from(document.querySelectorAll(".tab-btn"));
@@ -277,6 +306,20 @@
         }
       }
 
+      async function loadConfirmAge() {
+        try {
+          const res = await fetch("/api/confirm-age");
+          if (!res.ok) return;
+          const data = await res.json();
+          const v = Number(data.min_age_sec).toFixed(1);
+          confirmAgeRange.value = v;
+          confirmAgeInput.value = v;
+          confirmAgeCurrent.textContent = "текущее: " + v;
+        } catch (_e) {
+          // ignore
+        }
+      }
+
       thresholdRange.addEventListener("input", () => {
         thresholdInput.value = thresholdRange.value;
       });
@@ -285,6 +328,15 @@
         const v = Number(thresholdInput.value);
         if (!Number.isNaN(v)) {
           thresholdRange.value = String(v);
+        }
+      });
+      confirmAgeRange.addEventListener("input", () => {
+        confirmAgeInput.value = confirmAgeRange.value;
+      });
+      confirmAgeInput.addEventListener("input", () => {
+        const v = Number(confirmAgeInput.value);
+        if (!Number.isNaN(v)) {
+          confirmAgeRange.value = String(v);
         }
       });
 
@@ -309,8 +361,30 @@
           alert("Сервер недоступен");
         }
       });
+      document.getElementById("confirm_age_apply").addEventListener("click", async () => {
+        const value = Number(confirmAgeInput.value);
+        if (Number.isNaN(value) || value < 0.0 || value > 5.0) {
+          alert("Введите значение от 0.0 до 5.0");
+          return;
+        }
+        try {
+          const res = await fetch("/api/confirm-age", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ min_age_sec: value }),
+          });
+          if (!res.ok) {
+            alert("Не удалось применить время подтверждения");
+            return;
+          }
+          await loadConfirmAge();
+        } catch (_e) {
+          alert("Сервер недоступен");
+        }
+      });
 
       loadThreshold();
+      loadConfirmAge();
 
       document.getElementById("reset_btn").addEventListener("click", async () => {
         const ok = window.confirm(

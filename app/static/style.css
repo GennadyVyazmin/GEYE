@@ -101,13 +101,19 @@ h2 {
   margin-bottom: 8px;
 }
 
-#threshold_input {
+#threshold_input,
+#confirm_age_input {
   width: 110px;
   background: #111827;
   color: var(--text);
   border: 1px solid #334155;
   border-radius: 8px;
   padding: 8px;
+}
+
+#confirm_age_range {
+  width: 100%;
+  margin-bottom: 8px;
 }
 
 .secondary-btn {
