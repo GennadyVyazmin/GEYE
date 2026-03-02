@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     rtsp_drain_grabs: int = 3
     min_db_event_interval_sec: float = 2.0
     count_confirm_min_hits: int = 3
-    count_confirm_min_age_sec: float = 1.5
+    count_confirm_min_age_sec: float = 4.0
     online_ttl_sec: float = 2.0
     photo_dir: str = "captures"
     photo_capture_once_per_id: bool = True
@@ -27,9 +27,9 @@ class Settings(BaseSettings):
     enable_line_crossing: bool = False
     line_y_ratio: float = 0.55
     crossing_debounce_sec: float = 2.0
-    reid_match_threshold: float = 0.72
+    reid_match_threshold: float = 0.68
     reid_max_absence_sec: float = 86400.0
-    track_ttl_sec: float = 3.0
+    track_ttl_sec: float = 15.0
     db_path: str = "analytics.db"
 
 

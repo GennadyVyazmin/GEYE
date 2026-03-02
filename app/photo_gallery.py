@@ -34,6 +34,8 @@ class PhotoGalleryService:
 
         cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
         self.face_detector = cv2.CascadeClassifier(cascade_path)
+        eyes_path = cv2.data.haarcascades + "haarcascade_eye_tree_eyeglasses.xml"
+        self.eye_detector = cv2.CascadeClassifier(eyes_path)
 
     def reset_state(self, clear_files: bool = False) -> None:
         with self._lock:
@@ -231,12 +233,27 @@ class PhotoGalleryService:
         cy_ref = h / 3.0
         for x, y, fw, fh in faces:
             area_ratio = (fw * fh) / float(max(1, w * h))
+            aspect = fw / float(max(1, fh))
+            if area_ratio < 0.02:
+                continue
+            if aspect < 0.6 or aspect > 1.8:
+                continue
             fx = x + (fw / 2.0)
             fy = y + (fh / 2.0)
             dx = abs(fx - cx_ref) / max(1.0, w)
             dy = abs(fy - cy_ref) / max(1.0, h)
             center_score = max(0.0, 1.0 - (dx + dy))
-            score = (0.65 * area_ratio) + (0.35 * center_score)
+            face_roi = gray[y : y + fh, x : x + fw]
+            eyes = self.eye_detector.detectMultiScale(
+                face_roi,
+                scaleFactor=1.1,
+                minNeighbors=4,
+                minSize=(10, 10),
+            )
+            eye_score = min(1.0, len(eyes) / 2.0)
+            if len(eyes) == 0:
+                continue
+            score = (0.5 * area_ratio) + (0.25 * center_score) + (0.25 * eye_score)
             if score > best_score:
                 best_score = score
                 best = (x, y, fw, fh)

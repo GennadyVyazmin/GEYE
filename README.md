@@ -62,6 +62,11 @@ cp .env.example .env
 - `PHOTO_DIR`, `PHOTO_CAPTURE_ONCE_PER_ID`, `PHOTO_UPDATE_INTERVAL_SEC`, `GALLERY_LIMIT` - параметры фото-галереи,
 - `RTSP_LOW_LATENCY_MODE`, `RTSP_DRAIN_GRABS` - уменьшение накопления задержки RTSP.
 
+Рекомендуемый базовый профиль против ложных уникальных:
+- `REID_MATCH_THRESHOLD=0.68`
+- `COUNT_CONFIRM_MIN_AGE_SEC=4.0`
+- `TRACK_TTL_SEC=15.0`
+
 3. Запуск сервера:
 
 ```bash
