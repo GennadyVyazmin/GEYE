@@ -20,12 +20,13 @@ class ReIDService:
         match_threshold: float,
         max_absence_sec: float,
         track_ttl_sec: float,
+        start_global_id: int = 1,
     ) -> None:
         self.match_threshold = match_threshold
         self.max_absence = timedelta(seconds=max_absence_sec)
         self.track_ttl = timedelta(seconds=track_ttl_sec)
         self._lock = threading.Lock()
-        self._next_global_id = 1
+        self._next_global_id = max(1, int(start_global_id))
         self._track_to_global: dict[int, int] = {}
         self._track_last_seen: dict[int, datetime] = {}
         self._identities: dict[int, IdentityState] = {}
@@ -70,9 +71,10 @@ class ReIDService:
             self._track_last_seen[track_id] = now
             return global_id
 
-    def reset_state(self) -> None:
+    def reset_state(self, reset_counter: bool = False, start_global_id: int = 1) -> None:
         with self._lock:
-            self._next_global_id = 1
+            if reset_counter:
+                self._next_global_id = max(1, int(start_global_id))
             self._track_to_global.clear()
             self._track_last_seen.clear()
             self._identities.clear()

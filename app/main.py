@@ -23,6 +23,26 @@ base_dir = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(base_dir / "templates"))
 app.mount("/static", StaticFiles(directory=str(base_dir / "static")), name="static")
 
+
+def load_next_global_id(db_path: str) -> int:
+    with db_conn(db_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT COALESCE(MAX(global_id), 0) FROM sightings
+            UNION ALL
+            SELECT COALESCE(MAX(global_id), 0) FROM crossings
+            UNION ALL
+            SELECT COALESCE(MAX(global_id), 0) FROM face_photos
+            UNION ALL
+            SELECT COALESCE(MAX(global_id), 0) FROM person_registry
+            """
+        ).fetchall()
+    max_id = 0
+    for row in rows:
+        max_id = max(max_id, int(row[0] or 0))
+    return max_id + 1
+
+
 session_id = str(uuid.uuid4())
 init_db(settings.db_path)
 capture_dir = Path(settings.photo_dir)
@@ -54,6 +74,7 @@ reid = ReIDService(
     match_threshold=settings.reid_match_threshold,
     max_absence_sec=settings.reid_max_absence_sec,
     track_ttl_sec=settings.track_ttl_sec,
+    start_global_id=load_next_global_id(settings.db_path),
 )
 processor = VideoProcessor(
     rtsp_url=settings.rtsp_url,
@@ -109,7 +130,7 @@ async def stats():
 async def reset():
     analytics.reset_state(clear_db=True)
     gallery.reset_state(clear_files=True)
-    reid.reset_state()
+    reid.reset_state(reset_counter=False)
     return {"status": "ok", "message": "counters, tracks, and DB events reset"}
 
 
