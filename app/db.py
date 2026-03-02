@@ -60,6 +60,30 @@ def init_db(db_path: str) -> None:
             ON crossings(session_id, global_id)
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS face_photos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts TEXT NOT NULL,
+                session_id TEXT NOT NULL,
+                global_id INTEGER NOT NULL,
+                image_name TEXT NOT NULL,
+                face_score REAL NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_face_photos_ts
+            ON face_photos(ts)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_face_photos_global
+            ON face_photos(global_id)
+            """
+        )
         conn.commit()
     finally:
         conn.close()

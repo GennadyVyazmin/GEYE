@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from .analytics import AnalyticsService
 from .config import settings
 from .db import init_db
+from .photo_gallery import PhotoGalleryService
 from .reid import ReIDService
 from .video_processor import VideoProcessor
 
@@ -23,6 +24,12 @@ app.mount("/static", StaticFiles(directory=str(base_dir / "static")), name="stat
 
 session_id = str(uuid.uuid4())
 init_db(settings.db_path)
+capture_dir = Path(settings.photo_dir)
+if not capture_dir.is_absolute():
+    capture_dir = (Path.cwd() / capture_dir).resolve()
+capture_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/captures", StaticFiles(directory=str(capture_dir)), name="captures")
+
 analytics = AnalyticsService(
     db_path=settings.db_path,
     session_id=session_id,
@@ -33,6 +40,13 @@ analytics = AnalyticsService(
     enable_line_crossing=settings.enable_line_crossing,
     line_y_ratio=settings.line_y_ratio,
     crossing_debounce_sec=settings.crossing_debounce_sec,
+)
+gallery = PhotoGalleryService(
+    db_path=settings.db_path,
+    session_id=session_id,
+    capture_dir=capture_dir,
+    photo_update_interval_sec=settings.photo_update_interval_sec,
+    gallery_limit=settings.gallery_limit,
 )
 reid = ReIDService(
     match_threshold=settings.reid_match_threshold,
@@ -48,6 +62,7 @@ processor = VideoProcessor(
     process_every_n_frames=settings.process_every_n_frames,
     jpeg_quality=settings.jpeg_quality,
     analytics=analytics,
+    gallery=gallery,
     reid=reid,
 )
 
@@ -79,6 +94,7 @@ async def stats():
 @app.post("/api/reset")
 async def reset():
     analytics.reset_state(clear_db=True)
+    gallery.reset_state(clear_files=True)
     reid.reset_state()
     return {"status": "ok", "message": "counters, tracks, and DB events reset"}
 
@@ -94,6 +110,14 @@ async def set_reid(payload: ReIDThresholdPayload):
         raise HTTPException(status_code=400, detail="match_threshold must be in [0.0, 1.0]")
     value = reid.set_match_threshold(payload.match_threshold)
     return {"status": "ok", "match_threshold": value}
+
+
+@app.get("/api/gallery")
+async def get_gallery(window: str = "online"):
+    if window not in {"online", "hour", "day"}:
+        raise HTTPException(status_code=400, detail="window must be online|hour|day")
+    online_ids = analytics.get_online_ids()
+    return JSONResponse(gallery.list_people(window=window, online_ids=online_ids))
 
 
 @app.get("/health")

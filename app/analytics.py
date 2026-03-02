@@ -50,7 +50,17 @@ class AnalyticsService:
         with db_conn(self.db_path) as conn:
             conn.execute("DELETE FROM sightings")
             conn.execute("DELETE FROM crossings")
+            conn.execute("DELETE FROM face_photos")
             conn.commit()
+
+    def get_online_ids(self) -> list[int]:
+        now = datetime.now(timezone.utc)
+        online_ids: list[int] = []
+        with self._lock:
+            for global_id, seen_at in self._last_seen_by_global.items():
+                if (now - seen_at) <= self.online_ttl:
+                    online_ids.append(global_id)
+        return sorted(online_ids)
 
     def register_seen(self, global_id: int, now: datetime) -> None:
         should_write = False
@@ -189,11 +199,7 @@ class AnalyticsService:
                 in_day_row = (0,)
                 out_day_row = (0,)
 
-        online_ids: list[int] = []
-        with self._lock:
-            for global_id, seen_at in self._last_seen_by_global.items():
-                if (now - seen_at) <= self.online_ttl:
-                    online_ids.append(global_id)
+        online_ids = self.get_online_ids()
 
         return {
             "timestamp_utc": now.isoformat(),

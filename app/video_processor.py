@@ -8,6 +8,7 @@ import numpy as np
 from ultralytics import YOLO
 
 from .analytics import AnalyticsService
+from .photo_gallery import PhotoGalleryService
 from .reid import ReIDService
 
 
@@ -22,6 +23,7 @@ class VideoProcessor:
         process_every_n_frames: int,
         jpeg_quality: int,
         analytics: AnalyticsService,
+        gallery: PhotoGalleryService,
         reid: ReIDService,
     ) -> None:
         self.rtsp_url = rtsp_url
@@ -31,6 +33,7 @@ class VideoProcessor:
         self.process_every_n_frames = max(1, process_every_n_frames)
         self.jpeg_quality = max(40, min(95, jpeg_quality))
         self.analytics = analytics
+        self.gallery = gallery
         self.reid = reid
         self.model = YOLO(model_path)
         self._thread: Optional[threading.Thread] = None
@@ -101,6 +104,12 @@ class VideoProcessor:
                             now=now,
                         )
                         self.analytics.register_seen(global_id, now)
+                        self.gallery.register_detection(
+                            global_id=global_id,
+                            frame_bgr=frame,
+                            person_bbox_xyxy=(x1, y1, x2, y2),
+                            now=now,
+                        )
                         if self.analytics.enable_line_crossing:
                             center_y = (y1 + y2) / 2.0
                             self.analytics.register_position(

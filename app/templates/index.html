@@ -63,6 +63,15 @@
         <p class="muted">
           Активные ID: <span id="global_ids">-</span>
         </p>
+
+        <h2>Фото уникальных</h2>
+        <div class="gallery-tabs">
+          <button class="tab-btn active" data-window="online" type="button">В кадре</button>
+          <button class="tab-btn" data-window="hour" type="button">За час</button>
+          <button class="tab-btn" data-window="day" type="button">За 24 часа</button>
+        </div>
+        <p id="gallery_info" class="muted">Загрузка...</p>
+        <div id="gallery_grid" class="gallery-grid"></div>
       </section>
     </main>
 
@@ -72,6 +81,10 @@
       const thresholdRange = document.getElementById("threshold_range");
       const thresholdInput = document.getElementById("threshold_input");
       const thresholdCurrent = document.getElementById("threshold_current");
+      const galleryGrid = document.getElementById("gallery_grid");
+      const galleryInfo = document.getElementById("gallery_info");
+      const galleryTabs = Array.from(document.querySelectorAll(".tab-btn"));
+      let currentGalleryWindow = "online";
       let snapshotTimer = null;
       let switchedToSnapshot = false;
 
@@ -110,6 +123,54 @@
       }
       setInterval(refreshStats, 2000);
       refreshStats();
+
+      function renderGallery(items) {
+        if (!items || items.length === 0) {
+          galleryGrid.innerHTML = '<div class="muted">Нет данных для этого окна</div>';
+          return;
+        }
+        galleryGrid.innerHTML = items
+          .map((item) => {
+            if (item.image_url) {
+              return `
+                <article class="person-card">
+                  <img src="${item.image_url}" alt="G${item.global_id}" loading="lazy" />
+                  <div class="person-meta">G${item.global_id}</div>
+                </article>
+              `;
+            }
+            return `
+              <article class="person-card no-photo">
+                <div class="no-photo-text">Нет фото анфас</div>
+                <div class="person-meta">G${item.global_id}</div>
+              </article>
+            `;
+          })
+          .join("");
+      }
+
+      async function refreshGallery() {
+        try {
+          const res = await fetch("/api/gallery?window=" + currentGalleryWindow);
+          if (!res.ok) return;
+          const data = await res.json();
+          galleryInfo.textContent = `Людей: ${data.count}`;
+          renderGallery(data.items);
+        } catch (_e) {
+          galleryInfo.textContent = "Ошибка загрузки галереи";
+        }
+      }
+
+      galleryTabs.forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          galleryTabs.forEach((x) => x.classList.remove("active"));
+          btn.classList.add("active");
+          currentGalleryWindow = btn.dataset.window;
+          await refreshGallery();
+        });
+      });
+      setInterval(refreshGallery, 5000);
+      refreshGallery();
 
       async function loadThreshold() {
         try {
@@ -172,6 +233,7 @@
             return;
           }
           await refreshStats();
+          await refreshGallery();
         } catch (_e) {
           alert("Сервер недоступен");
         }

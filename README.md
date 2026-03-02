@@ -21,6 +21,7 @@ MVP-сервер для:
   - `unique_last_24h`,
   - список текущих `global_id`.
 - `POST /api/reset` - сброс счетчиков, треков и очистка событий в БД.
+- `GET /api/gallery?window=online|hour|day` - фото уникальных людей (приоритет на лицо анфас).
 
 ## Важно про "идентификацию каждого"
 
@@ -55,7 +56,8 @@ cp .env.example .env
 - `ENABLE_LINE_CROSSING=false` - пока отключает логику вход/выход,
 - `REID_MATCH_THRESHOLD` - строгость сопоставления при повторном входе,
 - `REID_MAX_ABSENCE_SEC` - как долго хранить профиль человека для повторной идентификации,
-- `COUNT_CONFIRM_MIN_HITS` и `COUNT_CONFIRM_MIN_AGE_SEC` - подтверждение нового гостя перед записью в статистику.
+- `COUNT_CONFIRM_MIN_HITS` и `COUNT_CONFIRM_MIN_AGE_SEC` - подтверждение нового гостя перед записью в статистику,
+- `PHOTO_DIR`, `PHOTO_UPDATE_INTERVAL_SEC`, `GALLERY_LIMIT` - параметры фото-галереи.
 
 3. Запуск сервера:
 

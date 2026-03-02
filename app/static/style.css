@@ -124,6 +124,67 @@ h2 {
   background: #273449;
 }
 
+.gallery-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.tab-btn {
+  border: 1px solid #334155;
+  background: #111827;
+  color: #cbd5e1;
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.tab-btn.active {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #eff6ff;
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.person-card {
+  border: 1px solid #263246;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0b1220;
+}
+
+.person-card img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  display: block;
+}
+
+.person-meta {
+  padding: 6px 8px;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.person-card.no-photo {
+  display: grid;
+  align-items: center;
+  justify-items: center;
+  min-height: 130px;
+}
+
+.no-photo-text {
+  color: #94a3b8;
+  font-size: 13px;
+}
+
 .reset-btn {
   width: 100%;
   border: 1px solid #7f1d1d;
@@ -142,5 +203,9 @@ h2 {
 @media (max-width: 960px) {
   .layout {
     grid-template-columns: 1fr;
+  }
+
+  .gallery-grid {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
