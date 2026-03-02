@@ -49,7 +49,7 @@
         if (snapshotTimer) clearInterval(snapshotTimer);
         snapshotTimer = setInterval(() => {
           videoImg.src = "/frame.jpg?t=" + Date.now();
-        }, 350);
+        }, 120);
       }
 
       videoImg.addEventListener("error", startSnapshotFallback);

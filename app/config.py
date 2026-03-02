@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     model_path: str = "yolov8n.pt"
     detector_conf: float = 0.35
     detector_iou: float = 0.5
+    frame_max_width: int = 960
+    process_every_n_frames: int = 2
+    jpeg_quality: int = 75
     min_db_event_interval_sec: float = 2.0
     online_ttl_sec: float = 2.0
     enable_line_crossing: bool = False

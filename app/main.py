@@ -41,6 +41,9 @@ processor = VideoProcessor(
     model_path=settings.model_path,
     conf=settings.detector_conf,
     iou=settings.detector_iou,
+    frame_max_width=settings.frame_max_width,
+    process_every_n_frames=settings.process_every_n_frames,
+    jpeg_quality=settings.jpeg_quality,
     analytics=analytics,
     reid=reid,
 )

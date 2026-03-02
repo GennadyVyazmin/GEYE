@@ -18,12 +18,18 @@ class VideoProcessor:
         model_path: str,
         conf: float,
         iou: float,
+        frame_max_width: int,
+        process_every_n_frames: int,
+        jpeg_quality: int,
         analytics: AnalyticsService,
         reid: ReIDService,
     ) -> None:
         self.rtsp_url = rtsp_url
         self.conf = conf
         self.iou = iou
+        self.frame_max_width = max(320, frame_max_width)
+        self.process_every_n_frames = max(1, process_every_n_frames)
+        self.jpeg_quality = max(40, min(95, jpeg_quality))
         self.analytics = analytics
         self.reid = reid
         self.model = YOLO(model_path)
@@ -54,11 +60,18 @@ class VideoProcessor:
             if not cap.isOpened():
                 time.sleep(2)
                 continue
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            frame_counter = 0
 
             while not self._stop_event.is_set():
                 ok, frame = cap.read()
                 if not ok:
                     break
+                frame_counter += 1
+                if (frame_counter % self.process_every_n_frames) != 0:
+                    continue
+
+                frame = self._resize_max_width(frame, self.frame_max_width)
 
                 results = self.model.track(
                     source=frame,
@@ -110,10 +123,21 @@ class VideoProcessor:
                             cv2.LINE_AA,
                         )
 
-                ok_jpg, jpg = cv2.imencode(".jpg", rendered)
+                ok_jpg, jpg = cv2.imencode(
+                    ".jpg", rendered, [int(cv2.IMWRITE_JPEG_QUALITY), self.jpeg_quality]
+                )
                 if ok_jpg:
                     with self._frame_lock:
                         self._last_jpeg = jpg.tobytes()
 
             cap.release()
             time.sleep(1)
+
+    @staticmethod
+    def _resize_max_width(frame: np.ndarray, max_width: int) -> np.ndarray:
+        h, w = frame.shape[:2]
+        if w <= max_width:
+            return frame
+        scale = max_width / float(w)
+        target_h = max(1, int(h * scale))
+        return cv2.resize(frame, (max_width, target_h), interpolation=cv2.INTER_AREA)
