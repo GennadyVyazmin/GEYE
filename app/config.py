@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     model_path: str = "yolov8n.pt"
     detector_conf: float = 0.35
     detector_iou: float = 0.5
+    min_person_box_height_px: int = 60
+    min_person_box_area_ratio: float = 0.012
     frame_max_width: int = 960
     process_every_n_frames: int = 2
     jpeg_quality: int = 75

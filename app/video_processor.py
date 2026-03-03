@@ -20,6 +20,8 @@ class VideoProcessor:
         model_path: str,
         conf: float,
         iou: float,
+        min_person_box_height_px: int,
+        min_person_box_area_ratio: float,
         frame_max_width: int,
         process_every_n_frames: int,
         jpeg_quality: int,
@@ -32,6 +34,8 @@ class VideoProcessor:
         self.rtsp_url = rtsp_url
         self.conf = conf
         self.iou = iou
+        self.min_person_box_height_px = max(1, int(min_person_box_height_px))
+        self.min_person_box_area_ratio = max(0.0, float(min_person_box_area_ratio))
         self.frame_max_width = max(320, frame_max_width)
         self.process_every_n_frames = max(1, process_every_n_frames)
         self.jpeg_quality = max(40, min(95, jpeg_quality))
@@ -106,6 +110,13 @@ class VideoProcessor:
                     boxes = result.boxes.xyxy.cpu().numpy().astype(np.int32)
                     for idx, track_id in enumerate(ids):
                         x1, y1, x2, y2 = [int(v) for v in boxes[idx].tolist()]
+                        bw = max(1, x2 - x1)
+                        bh = max(1, y2 - y1)
+                        area_ratio = (bw * bh) / float(max(1, frame_w * frame_h))
+                        if bh < self.min_person_box_height_px:
+                            continue
+                        if area_ratio < self.min_person_box_area_ratio:
+                            continue
                         global_id = self.reid.assign_global_id(
                             track_id=track_id,
                             bbox_xyxy=(x1, y1, x2, y2),

@@ -248,6 +248,9 @@ class PhotoGalleryService:
                 continue
             if aspect < 0.6 or aspect > 1.8:
                 continue
+            # Face should be in upper portion of person crop; rejects many object false positives.
+            if (y + (fh / 2.0)) > (h * 0.72):
+                continue
             fx = x + (fw / 2.0)
             fy = y + (fh / 2.0)
             dx = abs(fx - cx_ref) / max(1.0, w)
