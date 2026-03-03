@@ -80,6 +80,9 @@ gallery = PhotoGalleryService(
     face_profile_bank_per_id=settings.face_profile_bank_per_id,
     face_rebind_min_votes=settings.face_rebind_min_votes,
     face_rebind_cluster_delta=settings.face_rebind_cluster_delta,
+    face_prefer_locked_delta=settings.face_prefer_locked_delta,
+    face_global_dedup_threshold=settings.face_global_dedup_threshold,
+    face_global_dedup_interval_sec=settings.face_global_dedup_interval_sec,
 )
 reid = ReIDService(
     match_threshold=settings.reid_match_threshold,

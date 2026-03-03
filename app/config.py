@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     face_profile_bank_per_id: int = 6
     face_rebind_min_votes: int = 2
     face_rebind_cluster_delta: float = 0.03
+    face_prefer_locked_delta: float = 0.08
+    face_global_dedup_threshold: float = 0.88
+    face_global_dedup_interval_sec: float = 20.0
     enable_line_crossing: bool = False
     line_y_ratio: float = 0.55
     crossing_debounce_sec: float = 2.0

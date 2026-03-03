@@ -36,6 +36,9 @@ class PhotoGalleryService:
         face_profile_bank_per_id: int,
         face_rebind_min_votes: int,
         face_rebind_cluster_delta: float,
+        face_prefer_locked_delta: float,
+        face_global_dedup_threshold: float,
+        face_global_dedup_interval_sec: float,
     ) -> None:
         self.db_path = db_path
         self.session_id = session_id
@@ -53,6 +56,9 @@ class PhotoGalleryService:
         self.face_profile_bank_per_id = max(1, int(face_profile_bank_per_id))
         self.face_rebind_min_votes = max(1, int(face_rebind_min_votes))
         self.face_rebind_cluster_delta = max(0.0, min(0.2, float(face_rebind_cluster_delta)))
+        self.face_prefer_locked_delta = max(0.0, min(0.3, float(face_prefer_locked_delta)))
+        self.face_global_dedup_threshold = max(0.0, min(1.0, float(face_global_dedup_threshold)))
+        self.face_global_dedup_interval = timedelta(seconds=max(5.0, float(face_global_dedup_interval_sec)))
         self._lock = threading.Lock()
         self._last_saved_by_global: dict[int, datetime] = {}
         self._best_score_by_global: dict[int, float] = {}
@@ -60,6 +66,7 @@ class PhotoGalleryService:
         self._locked_profiles: dict[int, np.ndarray] = {}
         self._photo_profiles: dict[int, list[np.ndarray]] = {}
         self._last_photo_profiles_reload: datetime = datetime.min.replace(tzinfo=timezone.utc)
+        self._last_global_dedup_at: datetime = datetime.min.replace(tzinfo=timezone.utc)
 
         cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
         self.face_detector = cv2.CascadeClassifier(cascade_path)
@@ -76,6 +83,7 @@ class PhotoGalleryService:
             self._locked_profiles.clear()
             self._photo_profiles.clear()
             self._last_photo_profiles_reload = datetime.min.replace(tzinfo=timezone.utc)
+            self._last_global_dedup_at = datetime.min.replace(tzinfo=timezone.utc)
         if clear_files:
             for p in self.capture_dir.glob("*.jpg"):
                 try:
@@ -318,6 +326,7 @@ class PhotoGalleryService:
     def _match_photo_profile(self, face_embedding: np.ndarray, current_global_id: int) -> int | None:
         with self._lock:
             items = list(self._photo_profiles.items())
+            locked_ids = set(self._locked_profiles.keys())
         if not items:
             return None
         scored: list[tuple[int, float]] = []
@@ -335,6 +344,15 @@ class PhotoGalleryService:
         if best_score < self.face_rebind_match_threshold:
             return None
 
+        # Prefer registered/locked identity when score is close to best.
+        locked_close = [
+            gid
+            for gid, score in scored
+            if gid in locked_ids and (best_score - score) <= self.face_prefer_locked_delta
+        ]
+        if locked_close:
+            return int(min(locked_close))
+
         # If several IDs are almost equally close, collapse them to the oldest (min G-ID).
         # This removes duplicated IDs of the same person (e.g. G2/G3/G4 for one face).
         cluster = [
@@ -351,6 +369,48 @@ class PhotoGalleryService:
         if margin >= self.face_rebind_margin:
             return int(best_gid)
         return None
+
+    def suggest_global_merges(self, now: datetime) -> list[tuple[int, int]]:
+        with self._lock:
+            if (now - self._last_global_dedup_at) < self.face_global_dedup_interval:
+                return []
+            self._last_global_dedup_at = now
+            photo_profiles = {gid: list(embs) for gid, embs in self._photo_profiles.items()}
+            locked_ids = set(self._locked_profiles.keys())
+
+        if len(photo_profiles) < 2:
+            return []
+
+        rep: dict[int, np.ndarray] = {}
+        for gid, embs in photo_profiles.items():
+            if len(embs) == 0:
+                continue
+            vec = np.mean(np.stack(embs, axis=0), axis=0).astype(np.float32)
+            rep[gid] = self._normalize(vec)
+        gids = sorted(rep.keys())
+        merges: list[tuple[int, int]] = []
+        blocked: set[int] = set()
+        for i in range(len(gids)):
+            a = gids[i]
+            if a in blocked:
+                continue
+            for j in range(i + 1, len(gids)):
+                b = gids[j]
+                if b in blocked:
+                    continue
+                sim = self._cosine_similarity(rep[a], rep[b])
+                if sim < self.face_global_dedup_threshold:
+                    continue
+                # Conservative: auto-merge only if at least one side is locked/registered.
+                if a not in locked_ids and b not in locked_ids:
+                    continue
+                if a in locked_ids and b in locked_ids:
+                    continue
+                to_gid = a if a in locked_ids else b
+                from_gid = b if to_gid == a else a
+                merges.append((from_gid, to_gid))
+                blocked.add(from_gid)
+        return merges
 
     def list_people(self, window: str, online_ids: list[int]) -> dict:
         now = datetime.now(timezone.utc)

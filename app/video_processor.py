@@ -205,6 +205,11 @@ class VideoProcessor:
                             cv2.LINE_AA,
                         )
 
+                for from_gid, to_gid in self.gallery.suggest_global_merges(now):
+                    self.analytics.merge_global_ids(from_global_id=from_gid, to_global_id=to_gid)
+                    self.gallery.merge_global_ids(from_global_id=from_gid, to_global_id=to_gid)
+                    self.reid.merge_global_ids(from_global_id=from_gid, to_global_id=to_gid, now=now)
+
                 ok_jpg, jpg = cv2.imencode(
                     ".jpg", rendered, [int(cv2.IMWRITE_JPEG_QUALITY), self.jpeg_quality]
                 )
