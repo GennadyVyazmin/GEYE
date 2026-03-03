@@ -179,6 +179,58 @@ class PhotoGalleryService:
         self._reload_photo_profiles()
         return True
 
+    def merge_global_ids(self, from_global_id: int, to_global_id: int) -> None:
+        if from_global_id == to_global_id:
+            return
+        with db_conn(self.db_path) as conn:
+            # Keep existing target registration if it already exists.
+            to_reg = conn.execute(
+                "SELECT 1 FROM person_registry WHERE global_id = ? LIMIT 1", (to_global_id,)
+            ).fetchone()
+            if to_reg is None:
+                conn.execute(
+                    "UPDATE person_registry SET global_id = ?, updated_ts = ? WHERE global_id = ?",
+                    (to_global_id, datetime.now(timezone.utc).isoformat(), from_global_id),
+                )
+            else:
+                conn.execute("DELETE FROM person_registry WHERE global_id = ?", (from_global_id,))
+
+            conn.execute(
+                "UPDATE face_photos SET global_id = ? WHERE global_id = ?",
+                (to_global_id, from_global_id),
+            )
+
+            to_lock = conn.execute(
+                "SELECT 1 FROM person_face_profiles WHERE global_id = ? LIMIT 1", (to_global_id,)
+            ).fetchone()
+            if to_lock is None:
+                conn.execute(
+                    "UPDATE person_face_profiles SET global_id = ?, updated_ts = ? WHERE global_id = ?",
+                    (to_global_id, datetime.now(timezone.utc).isoformat(), from_global_id),
+                )
+            else:
+                conn.execute("DELETE FROM person_face_profiles WHERE global_id = ?", (from_global_id,))
+            conn.commit()
+
+        with self._lock:
+            if from_global_id in self._has_photo_by_global:
+                self._has_photo_by_global.add(to_global_id)
+            self._has_photo_by_global.discard(from_global_id)
+            if from_global_id in self._best_score_by_global:
+                self._best_score_by_global[to_global_id] = max(
+                    self._best_score_by_global.get(to_global_id, 0.0),
+                    self._best_score_by_global[from_global_id],
+                )
+            self._best_score_by_global.pop(from_global_id, None)
+            from_last = self._last_saved_by_global.get(from_global_id)
+            to_last = self._last_saved_by_global.get(to_global_id)
+            if from_last is not None and (to_last is None or from_last > to_last):
+                self._last_saved_by_global[to_global_id] = from_last
+            self._last_saved_by_global.pop(from_global_id, None)
+
+        self._reload_locked_profiles()
+        self._reload_photo_profiles()
+
     def _reload_locked_profiles(self) -> None:
         with db_conn(self.db_path) as conn:
             rows = conn.execute(
@@ -458,12 +510,12 @@ class PhotoGalleryService:
         for x, y, fw, fh in faces:
             area_ratio = (fw * fh) / float(max(1, w * h))
             aspect = fw / float(max(1, fh))
-            if area_ratio < 0.02:
+            if area_ratio < 0.025:
                 continue
             if aspect < 0.72 or aspect > 1.42:
                 continue
             # Face should be in upper portion of person crop; rejects many object false positives.
-            if (y + (fh / 2.0)) > (h * 0.70):
+            if (y + (fh / 2.0)) > (h * 0.62):
                 continue
             fx = x + (fw / 2.0)
             fy = y + (fh / 2.0)
@@ -477,7 +529,7 @@ class PhotoGalleryService:
                 minNeighbors=3,
                 minSize=(10, 10),
             )
-            if len(eyes) < 1 and area_ratio < 0.09:
+            if len(eyes) < 1:
                 continue
             eye_score = min(1.0, len(eyes) / 2.0)
             score = (0.55 * area_ratio) + (0.25 * center_score) + (0.20 * eye_score)
@@ -488,8 +540,8 @@ class PhotoGalleryService:
             return None, 0.0
 
         x, y, fw, fh = best
-        margin_x = int(0.2 * fw)
-        margin_y = int(0.25 * fh)
+        margin_x = int(0.1 * fw)
+        margin_y = int(0.12 * fh)
         x1 = max(0, x - margin_x)
         y1 = max(0, y - margin_y)
         x2 = min(w, x + fw + margin_x)

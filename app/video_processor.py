@@ -136,6 +136,7 @@ class VideoProcessor:
                             frame_bgr=source_frame,
                             now=now,
                         )
+                        assigned_global_id = global_id
                         face_result = self.gallery.register_detection(
                             global_id=global_id,
                             frame_bgr=source_frame,
@@ -147,6 +148,19 @@ class VideoProcessor:
                             and face_result.locked_global_id != global_id
                         ):
                             global_id = face_result.locked_global_id
+                            self.analytics.merge_global_ids(
+                                from_global_id=assigned_global_id,
+                                to_global_id=global_id,
+                            )
+                            self.gallery.merge_global_ids(
+                                from_global_id=assigned_global_id,
+                                to_global_id=global_id,
+                            )
+                            self.reid.merge_global_ids(
+                                from_global_id=assigned_global_id,
+                                to_global_id=global_id,
+                                now=now,
+                            )
                             self.reid.rebind_track(track_id=track_id, global_id=global_id, now=now)
                         elif (
                             face_result.face_confirmed

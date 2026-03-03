@@ -121,6 +121,64 @@ class AnalyticsService:
             )
             conn.commit()
 
+    def merge_global_ids(self, from_global_id: int, to_global_id: int) -> None:
+        if from_global_id == to_global_id:
+            return
+        with self._lock:
+            self._last_db_write_by_global[to_global_id] = max(
+                self._last_db_write_by_global.get(to_global_id, datetime.min.replace(tzinfo=timezone.utc)),
+                self._last_db_write_by_global.get(from_global_id, datetime.min.replace(tzinfo=timezone.utc)),
+            )
+            self._last_seen_by_global[to_global_id] = max(
+                self._last_seen_by_global.get(to_global_id, datetime.min.replace(tzinfo=timezone.utc)),
+                self._last_seen_by_global.get(from_global_id, datetime.min.replace(tzinfo=timezone.utc)),
+            )
+            first_to = self._first_seen_by_global.get(to_global_id)
+            first_from = self._first_seen_by_global.get(from_global_id)
+            if first_to is None:
+                if first_from is not None:
+                    self._first_seen_by_global[to_global_id] = first_from
+            elif first_from is not None:
+                self._first_seen_by_global[to_global_id] = min(first_to, first_from)
+            self._seen_hits_by_global[to_global_id] = (
+                self._seen_hits_by_global.get(to_global_id, 0)
+                + self._seen_hits_by_global.get(from_global_id, 0)
+            )
+            self._face_hits_by_global[to_global_id] = (
+                self._face_hits_by_global.get(to_global_id, 0)
+                + self._face_hits_by_global.get(from_global_id, 0)
+            )
+            if from_global_id in self._confirmed_globals:
+                self._confirmed_globals.add(to_global_id)
+            if from_global_id in self._last_center_y_norm_by_global:
+                self._last_center_y_norm_by_global[to_global_id] = self._last_center_y_norm_by_global[
+                    from_global_id
+                ]
+            if from_global_id in self._last_crossing_by_global:
+                self._last_crossing_by_global[to_global_id] = self._last_crossing_by_global[
+                    from_global_id
+                ]
+
+            self._last_db_write_by_global.pop(from_global_id, None)
+            self._last_seen_by_global.pop(from_global_id, None)
+            self._first_seen_by_global.pop(from_global_id, None)
+            self._seen_hits_by_global.pop(from_global_id, None)
+            self._face_hits_by_global.pop(from_global_id, None)
+            self._confirmed_globals.discard(from_global_id)
+            self._last_center_y_norm_by_global.pop(from_global_id, None)
+            self._last_crossing_by_global.pop(from_global_id, None)
+
+        with db_conn(self.db_path) as conn:
+            conn.execute(
+                "UPDATE sightings SET global_id = ? WHERE global_id = ?",
+                (to_global_id, from_global_id),
+            )
+            conn.execute(
+                "UPDATE crossings SET global_id = ? WHERE global_id = ?",
+                (to_global_id, from_global_id),
+            )
+            conn.commit()
+
     def register_position(
         self, global_id: int, center_y_px: float, frame_height_px: int, now: datetime
     ) -> str | None:

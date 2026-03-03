@@ -115,6 +115,32 @@ class ReIDService:
             self._track_last_seen[track_id] = now
             return global_id
 
+    def merge_global_ids(self, from_global_id: int, to_global_id: int, now: datetime) -> None:
+        if from_global_id == to_global_id:
+            return
+        with self._lock:
+            from_state = self._identities.get(from_global_id)
+            to_state = self._identities.get(to_global_id)
+            if from_state is not None:
+                if to_state is None:
+                    self._identities[to_global_id] = from_state
+                else:
+                    to_state.embedding = self._normalize((0.6 * to_state.embedding) + (0.4 * from_state.embedding))
+                    to_state.last_seen = max(to_state.last_seen, from_state.last_seen, now)
+                    tx, ty = to_state.center_norm_xy
+                    fx, fy = from_state.center_norm_xy
+                    to_state.center_norm_xy = ((0.7 * tx) + (0.3 * fx), (0.7 * ty) + (0.3 * fy))
+            self._identities.pop(from_global_id, None)
+
+            remap_tracks = [
+                track_id for track_id, gid in self._track_to_global.items() if gid == from_global_id
+            ]
+            for track_id in remap_tracks:
+                self._track_to_global[track_id] = to_global_id
+                self._track_last_seen[track_id] = now
+            if to_global_id >= self._next_global_id:
+                self._next_global_id = to_global_id + 1
+
     def _cleanup_tracks(self, now: datetime) -> None:
         stale = [
             track_id
