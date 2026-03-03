@@ -69,6 +69,7 @@ cp .env.example .env
 - `FACE_LOCK_MATCH_THRESHOLD`, `FACE_LOCK_MARGIN` - жесткость ID-lock по зарегистрированным лицам,
 - `FACE_REBIND_MATCH_THRESHOLD`, `FACE_REBIND_MARGIN` - авто-возврат к старому G-ID при очень сильном сходстве с ранее сохраненными фото,
 - `FACE_PROFILES_REFRESH_SEC` - как часто обновлять кеш фото-профилей для авто-возврата G-ID,
+- `FACE_PROFILE_BANK_PER_ID`, `FACE_REBIND_MIN_VOTES` - сравнение по серии фото (несколько лучших кадров на ID),
 - `RTSP_LOW_LATENCY_MODE`, `RTSP_DRAIN_GRABS` - уменьшение накопления задержки RTSP.
 
 Рекомендуемый базовый профиль против ложных уникальных:

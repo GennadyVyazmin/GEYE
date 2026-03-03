@@ -33,6 +33,8 @@ class PhotoGalleryService:
         face_rebind_match_threshold: float,
         face_rebind_margin: float,
         face_profiles_refresh_sec: float,
+        face_profile_bank_per_id: int,
+        face_rebind_min_votes: int,
     ) -> None:
         self.db_path = db_path
         self.session_id = session_id
@@ -47,12 +49,14 @@ class PhotoGalleryService:
         self.face_rebind_match_threshold = max(0.0, min(1.0, face_rebind_match_threshold))
         self.face_rebind_margin = max(0.0, min(0.5, face_rebind_margin))
         self.face_profiles_refresh_interval = timedelta(seconds=max(2.0, face_profiles_refresh_sec))
+        self.face_profile_bank_per_id = max(1, int(face_profile_bank_per_id))
+        self.face_rebind_min_votes = max(1, int(face_rebind_min_votes))
         self._lock = threading.Lock()
         self._last_saved_by_global: dict[int, datetime] = {}
         self._best_score_by_global: dict[int, float] = {}
         self._has_photo_by_global: set[int] = set()
         self._locked_profiles: dict[int, np.ndarray] = {}
-        self._photo_profiles: dict[int, np.ndarray] = {}
+        self._photo_profiles: dict[int, list[np.ndarray]] = {}
         self._last_photo_profiles_reload: datetime = datetime.min.replace(tzinfo=timezone.utc)
 
         cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
@@ -197,13 +201,17 @@ class PhotoGalleryService:
                 SELECT global_id, image_name
                 FROM face_photos
                 ORDER BY face_score DESC, ts DESC
-                LIMIT 2000
+                LIMIT 5000
                 """
             ).fetchall()
-        profiles: dict[int, np.ndarray] = {}
+        profiles: dict[int, list[np.ndarray]] = {}
         for global_id, image_name in rows:
             gid = int(global_id)
-            if gid in profiles:
+            current = profiles.get(gid)
+            if current is None:
+                current = []
+                profiles[gid] = current
+            if len(current) >= self.face_profile_bank_per_id:
                 continue
             img_path = self.capture_dir / str(image_name)
             if not img_path.exists():
@@ -214,7 +222,7 @@ class PhotoGalleryService:
             emb = self._extract_face_embedding(image)
             if emb.size == 0:
                 continue
-            profiles[gid] = emb
+            current.append(emb)
             if len(profiles) >= self.gallery_limit * 3:
                 break
         with self._lock:
@@ -261,14 +269,20 @@ class PhotoGalleryService:
         best_gid = None
         best_score = -1.0
         second_score = -1.0
-        for gid, emb in items:
-            score = self._cosine_similarity(face_embedding, emb)
+        for gid, embs in items:
+            if len(embs) == 0:
+                continue
+            sims = sorted((self._cosine_similarity(face_embedding, e) for e in embs), reverse=True)
+            votes = min(self.face_rebind_min_votes, len(sims))
+            score = float(np.mean(sims[:votes]))
             if score > best_score:
                 second_score = best_score
                 best_score = score
                 best_gid = gid
             elif score > second_score:
                 second_score = score
+        if best_gid is None:
+            return None
         margin = best_score - max(0.0, second_score)
         if best_score >= self.face_rebind_match_threshold and margin >= self.face_rebind_margin:
             if int(best_gid) == int(current_global_id):
@@ -343,7 +357,25 @@ class PhotoGalleryService:
         return [int(r[0]) for r in rows]
 
     def _pick_photo(self, global_id: int, cutoff: datetime | None) -> dict | None:
+        now = datetime.now(timezone.utc)
+        minute_ago = now - timedelta(minutes=1)
         with db_conn(self.db_path) as conn:
+            if cutoff is None:
+                recent_cutoff = minute_ago
+            else:
+                recent_cutoff = max(cutoff, minute_ago)
+            row = conn.execute(
+                """
+                SELECT ts, image_name
+                FROM face_photos
+                WHERE global_id = ? AND ts >= ?
+                ORDER BY face_score DESC, ts DESC
+                LIMIT 1
+                """,
+                (global_id, recent_cutoff.isoformat()),
+            ).fetchone()
+            if row is not None:
+                return {"ts": str(row[0]), "image_name": str(row[1])}
             if cutoff is None:
                 row = conn.execute(
                     """
