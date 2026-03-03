@@ -359,6 +359,8 @@ class PhotoGalleryService:
         best_score = -1.0
         second_score = -1.0
         for gid, emb in items:
+            if emb.shape != face_embedding.shape:
+                continue
             score = self._cosine_similarity(face_embedding, emb)
             if score > best_score:
                 second_score = best_score
@@ -366,6 +368,8 @@ class PhotoGalleryService:
                 best_gid = gid
             elif score > second_score:
                 second_score = score
+        if best_gid is None:
+            return None
         margin = best_score - max(0.0, second_score)
         if best_score >= self.face_lock_match_threshold and margin >= self.face_lock_margin:
             return best_gid
@@ -381,7 +385,12 @@ class PhotoGalleryService:
         for gid, embs in items:
             if len(embs) == 0:
                 continue
-            sims = sorted((self._cosine_similarity(face_embedding, e) for e in embs), reverse=True)
+            sims = sorted(
+                (self._cosine_similarity(face_embedding, e) for e in embs if e.shape == face_embedding.shape),
+                reverse=True,
+            )
+            if len(sims) == 0:
+                continue
             votes = min(self.face_rebind_min_votes, len(sims))
             score = float(np.mean(sims[:votes]))
             scored.append((int(gid), score))
@@ -713,6 +722,7 @@ class PhotoGalleryService:
             return
         try:
             from insightface.app import FaceAnalysis  # type: ignore
+            import onnxruntime as ort  # type: ignore
         except Exception:
             self._insightface_ready = False
             self._insightface_app = None
@@ -720,7 +730,11 @@ class PhotoGalleryService:
                 print("WARNING: insightface not installed, fallback to histogram embedding")
             return
         try:
-            providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+            available = set(ort.get_available_providers())
+            providers: list[str] = []
+            if "CUDAExecutionProvider" in available:
+                providers.append("CUDAExecutionProvider")
+            providers.append("CPUExecutionProvider")
             app = FaceAnalysis(name="buffalo_l", providers=providers)
             app.prepare(ctx_id=self.face_embedder_ctx_id, det_size=(320, 320))
             self._insightface_app = app
@@ -754,5 +768,7 @@ class PhotoGalleryService:
     @staticmethod
     def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
         if a.size == 0 or b.size == 0:
+            return 0.0
+        if a.shape != b.shape:
             return 0.0
         return float(np.dot(a, b))
