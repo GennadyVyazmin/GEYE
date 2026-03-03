@@ -84,6 +84,7 @@ gallery = PhotoGalleryService(
     face_rebind_cluster_delta=settings.face_rebind_cluster_delta,
     face_prefer_locked_delta=settings.face_prefer_locked_delta,
     face_global_dedup_threshold=settings.face_global_dedup_threshold,
+    face_global_dedup_unknown_threshold=settings.face_global_dedup_unknown_threshold,
     face_global_dedup_interval_sec=settings.face_global_dedup_interval_sec,
     face_stable_sim_threshold=settings.face_stable_sim_threshold,
     face_stable_min_hits=settings.face_stable_min_hits,

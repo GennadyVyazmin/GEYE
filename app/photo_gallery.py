@@ -41,6 +41,7 @@ class PhotoGalleryService:
         face_rebind_cluster_delta: float,
         face_prefer_locked_delta: float,
         face_global_dedup_threshold: float,
+        face_global_dedup_unknown_threshold: float,
         face_global_dedup_interval_sec: float,
         face_stable_sim_threshold: float,
         face_stable_min_hits: int,
@@ -68,6 +69,9 @@ class PhotoGalleryService:
         self.face_rebind_cluster_delta = max(0.0, min(0.2, float(face_rebind_cluster_delta)))
         self.face_prefer_locked_delta = max(0.0, min(0.3, float(face_prefer_locked_delta)))
         self.face_global_dedup_threshold = max(0.0, min(1.0, float(face_global_dedup_threshold)))
+        self.face_global_dedup_unknown_threshold = max(
+            0.0, min(1.0, float(face_global_dedup_unknown_threshold))
+        )
         self.face_global_dedup_interval = timedelta(seconds=max(5.0, float(face_global_dedup_interval_sec)))
         self.face_stable_sim_threshold = max(0.0, min(1.0, float(face_stable_sim_threshold)))
         self.face_stable_min_hits = max(1, int(face_stable_min_hits))
@@ -439,7 +443,7 @@ class PhotoGalleryService:
             return int(best_gid)
         return None
 
-    def suggest_global_merges(self, now: datetime) -> list[tuple[int, int]]:
+    def suggest_global_merges(self, now: datetime, online_ids: list[int]) -> list[tuple[int, int]]:
         with self._lock:
             if (now - self._last_global_dedup_at) < self.face_global_dedup_interval:
                 return []
@@ -447,6 +451,7 @@ class PhotoGalleryService:
             photo_profiles = {gid: list(embs) for gid, embs in self._photo_profiles.items()}
             locked_ids = set(self._locked_profiles.keys())
             stable_hits = dict(self._stable_face_hits_by_global)
+        online_set = {int(x) for x in online_ids}
 
         if len(photo_profiles) < 2:
             return []
@@ -472,15 +477,18 @@ class PhotoGalleryService:
                 threshold = self.face_global_dedup_threshold
                 if (a in locked_ids) ^ (b in locked_ids):
                     threshold = min(threshold, self.face_locked_relaxed_threshold)
+                if a not in locked_ids and b not in locked_ids:
+                    # Unknown-vs-unknown merges are allowed only with very high similarity
+                    # and never when both IDs are online at the same time.
+                    threshold = max(threshold, self.face_global_dedup_unknown_threshold)
+                    if a in online_set and b in online_set:
+                        continue
                 if sim < threshold:
                     continue
                 # Merge only stable identities to avoid accidental early merges.
                 if stable_hits.get(a, 0) < self.face_stable_min_hits:
                     continue
                 if stable_hits.get(b, 0) < self.face_stable_min_hits:
-                    continue
-                # Conservative: merge unknown IDs only through locked anchor.
-                if a not in locked_ids and b not in locked_ids:
                     continue
                 if a in locked_ids and b in locked_ids:
                     to_gid = min(a, b)

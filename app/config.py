@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     face_rebind_cluster_delta: float = 0.03
     face_prefer_locked_delta: float = 0.08
     face_global_dedup_threshold: float = 0.88
+    face_global_dedup_unknown_threshold: float = 0.93
     face_global_dedup_interval_sec: float = 12.0
     face_stable_sim_threshold: float = 0.80
     face_stable_min_hits: int = 2
