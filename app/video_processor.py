@@ -91,7 +91,12 @@ class VideoProcessor:
                 if (frame_counter % self.process_every_n_frames) != 0:
                     continue
 
-                frame = self._resize_max_width(frame, self.frame_max_width)
+                source_frame = frame
+                frame = self._resize_max_width(source_frame, self.frame_max_width)
+                src_h, src_w = source_frame.shape[:2]
+                proc_h, proc_w = frame.shape[:2]
+                scale_x = src_w / float(max(1, proc_w))
+                scale_y = src_h / float(max(1, proc_h))
 
                 results = self.model.track(
                     source=frame,
@@ -115,6 +120,9 @@ class VideoProcessor:
                     boxes = result.boxes.xyxy.cpu().numpy().astype(np.int32)
                     for idx, track_id in enumerate(ids):
                         x1, y1, x2, y2 = [int(v) for v in boxes[idx].tolist()]
+                        sx1, sy1, sx2, sy2 = self._scale_bbox(
+                            (x1, y1, x2, y2), scale_x, scale_y, src_w, src_h
+                        )
                         bw = max(1, x2 - x1)
                         bh = max(1, y2 - y1)
                         area_ratio = (bw * bh) / float(max(1, frame_w * frame_h))
@@ -124,14 +132,14 @@ class VideoProcessor:
                             continue
                         global_id = self.reid.assign_global_id(
                             track_id=track_id,
-                            bbox_xyxy=(x1, y1, x2, y2),
-                            frame_bgr=frame,
+                            bbox_xyxy=(sx1, sy1, sx2, sy2),
+                            frame_bgr=source_frame,
                             now=now,
                         )
                         face_result = self.gallery.register_detection(
                             global_id=global_id,
-                            frame_bgr=frame,
-                            person_bbox_xyxy=(x1, y1, x2, y2),
+                            frame_bgr=source_frame,
+                            person_bbox_xyxy=(sx1, sy1, sx2, sy2),
                             now=now,
                         )
                         if (
@@ -148,14 +156,14 @@ class VideoProcessor:
                             # Protect registered IDs from hijacking by body/clothes-only ReID matches.
                             global_id = self.reid.force_new_global_id(
                                 track_id=track_id,
-                                bbox_xyxy=(x1, y1, x2, y2),
-                                frame_bgr=frame,
+                                bbox_xyxy=(sx1, sy1, sx2, sy2),
+                                frame_bgr=source_frame,
                                 now=now,
                             )
                             face_result = self.gallery.register_detection(
                                 global_id=global_id,
-                                frame_bgr=frame,
-                                person_bbox_xyxy=(x1, y1, x2, y2),
+                                frame_bgr=source_frame,
+                                person_bbox_xyxy=(sx1, sy1, sx2, sy2),
                                 now=now,
                             )
                         self.analytics.register_seen(
@@ -214,3 +222,26 @@ class VideoProcessor:
         if not ok:
             return False, None
         return True, frame
+
+    @staticmethod
+    def _scale_bbox(
+        bbox_xyxy: tuple[int, int, int, int],
+        scale_x: float,
+        scale_y: float,
+        max_w: int,
+        max_h: int,
+    ) -> tuple[int, int, int, int]:
+        x1, y1, x2, y2 = bbox_xyxy
+        sx1 = int(round(x1 * scale_x))
+        sy1 = int(round(y1 * scale_y))
+        sx2 = int(round(x2 * scale_x))
+        sy2 = int(round(y2 * scale_y))
+        sx1 = max(0, min(max_w - 1, sx1))
+        sy1 = max(0, min(max_h - 1, sy1))
+        sx2 = max(0, min(max_w, sx2))
+        sy2 = max(0, min(max_h, sy2))
+        if sx2 <= sx1:
+            sx2 = min(max_w, sx1 + 1)
+        if sy2 <= sy1:
+            sy2 = min(max_h, sy1 + 1)
+        return sx1, sy1, sx2, sy2

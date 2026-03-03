@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     gallery_limit: int = 120
     face_lock_match_threshold: float = 0.72
     face_lock_margin: float = 0.05
-    face_min_score: float = 0.08
+    face_min_score: float = 0.06
     face_rebind_match_threshold: float = 0.90
     face_rebind_margin: float = 0.08
     face_profiles_refresh_sec: float = 8.0
