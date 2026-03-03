@@ -41,6 +41,7 @@ class PhotoGalleryService:
         face_global_dedup_interval_sec: float,
         face_stable_sim_threshold: float,
         face_stable_min_hits: int,
+        face_locked_relaxed_threshold: float,
     ) -> None:
         self.db_path = db_path
         self.session_id = session_id
@@ -63,6 +64,9 @@ class PhotoGalleryService:
         self.face_global_dedup_interval = timedelta(seconds=max(5.0, float(face_global_dedup_interval_sec)))
         self.face_stable_sim_threshold = max(0.0, min(1.0, float(face_stable_sim_threshold)))
         self.face_stable_min_hits = max(1, int(face_stable_min_hits))
+        self.face_locked_relaxed_threshold = max(
+            0.0, min(1.0, float(face_locked_relaxed_threshold))
+        )
         self._lock = threading.Lock()
         self._last_saved_by_global: dict[int, datetime] = {}
         self._best_score_by_global: dict[int, float] = {}
@@ -375,6 +379,16 @@ class PhotoGalleryService:
             return None
         scored.sort(key=lambda x: x[1], reverse=True)
         best_gid, best_score = scored[0]
+
+        # Prefer registered/locked identity with relaxed threshold for outfit/pose changes.
+        locked_hits = [
+            gid
+            for gid, score in scored
+            if gid in locked_ids and score >= self.face_locked_relaxed_threshold
+        ]
+        if locked_hits:
+            return int(min(locked_hits))
+
         if best_score < self.face_rebind_match_threshold:
             return None
 
@@ -433,7 +447,10 @@ class PhotoGalleryService:
                 if b in blocked:
                     continue
                 sim = self._cosine_similarity(rep[a], rep[b])
-                if sim < self.face_global_dedup_threshold:
+                threshold = self.face_global_dedup_threshold
+                if (a in locked_ids) ^ (b in locked_ids):
+                    threshold = min(threshold, self.face_locked_relaxed_threshold)
+                if sim < threshold:
                     continue
                 # Conservative: auto-merge only if at least one side is locked/registered.
                 if a not in locked_ids and b not in locked_ids:

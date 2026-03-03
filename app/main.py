@@ -85,6 +85,7 @@ gallery = PhotoGalleryService(
     face_global_dedup_interval_sec=settings.face_global_dedup_interval_sec,
     face_stable_sim_threshold=settings.face_stable_sim_threshold,
     face_stable_min_hits=settings.face_stable_min_hits,
+    face_locked_relaxed_threshold=settings.face_locked_relaxed_threshold,
 )
 reid = ReIDService(
     match_threshold=settings.reid_match_threshold,
