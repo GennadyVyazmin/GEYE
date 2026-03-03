@@ -29,6 +29,7 @@ class PhotoGalleryService:
         gallery_limit: int,
         face_lock_match_threshold: float,
         face_lock_margin: float,
+        face_min_score: float,
     ) -> None:
         self.db_path = db_path
         self.session_id = session_id
@@ -39,6 +40,7 @@ class PhotoGalleryService:
         self.gallery_limit = max(1, gallery_limit)
         self.face_lock_match_threshold = max(0.0, min(1.0, face_lock_match_threshold))
         self.face_lock_margin = max(0.0, min(0.5, face_lock_margin))
+        self.face_min_score = max(0.0, min(1.0, face_min_score))
         self._lock = threading.Lock()
         self._last_saved_by_global: dict[int, datetime] = {}
         self._best_score_by_global: dict[int, float] = {}
@@ -47,8 +49,6 @@ class PhotoGalleryService:
 
         cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
         self.face_detector = cv2.CascadeClassifier(cascade_path)
-        profile_path = cv2.data.haarcascades + "haarcascade_profileface.xml"
-        self.profile_face_detector = cv2.CascadeClassifier(profile_path)
         eyes_path = cv2.data.haarcascades + "haarcascade_eye_tree_eyeglasses.xml"
         self.eye_detector = cv2.CascadeClassifier(eyes_path)
         self._reload_locked_profiles()
@@ -79,7 +79,7 @@ class PhotoGalleryService:
             return FaceDetectionResult(face_confirmed=False, locked_global_id=None)
 
         face_crop, score = self._extract_best_face(person_crop)
-        if face_crop is None:
+        if face_crop is None or score < self.face_min_score:
             return FaceDetectionResult(face_confirmed=False, locked_global_id=None)
 
         face_embedding = self._extract_face_embedding(face_crop)
@@ -323,16 +323,10 @@ class PhotoGalleryService:
         faces_frontal = self.face_detector.detectMultiScale(
             gray,
             scaleFactor=1.1,
-            minNeighbors=3,
-            minSize=(20, 20),
+            minNeighbors=5,
+            minSize=(30, 30),
         )
-        faces_profile = self.profile_face_detector.detectMultiScale(
-            gray,
-            scaleFactor=1.1,
-            minNeighbors=3,
-            minSize=(20, 20),
-        )
-        faces = list(faces_frontal) + list(faces_profile)
+        faces = list(faces_frontal)
         if len(faces) == 0:
             return None, 0.0
 
@@ -344,12 +338,12 @@ class PhotoGalleryService:
         for x, y, fw, fh in faces:
             area_ratio = (fw * fh) / float(max(1, w * h))
             aspect = fw / float(max(1, fh))
-            if area_ratio < 0.01:
+            if area_ratio < 0.03:
                 continue
-            if aspect < 0.6 or aspect > 1.8:
+            if aspect < 0.72 or aspect > 1.42:
                 continue
             # Face should be in upper portion of person crop; rejects many object false positives.
-            if (y + (fh / 2.0)) > (h * 0.72):
+            if (y + (fh / 2.0)) > (h * 0.62):
                 continue
             fx = x + (fw / 2.0)
             fy = y + (fh / 2.0)
@@ -363,9 +357,10 @@ class PhotoGalleryService:
                 minNeighbors=3,
                 minSize=(10, 10),
             )
+            if len(eyes) < 1:
+                continue
             eye_score = min(1.0, len(eyes) / 2.0)
-            # Eyes can be missed when person wears glasses/looks down; don't hard reject.
-            score = (0.5 * area_ratio) + (0.25 * center_score) + (0.25 * eye_score)
+            score = (0.55 * area_ratio) + (0.25 * center_score) + (0.20 * eye_score)
             if score > best_score:
                 best_score = score
                 best = (x, y, fw, fh)

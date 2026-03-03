@@ -73,6 +73,7 @@ gallery = PhotoGalleryService(
     gallery_limit=settings.gallery_limit,
     face_lock_match_threshold=settings.face_lock_match_threshold,
     face_lock_margin=settings.face_lock_margin,
+    face_min_score=settings.face_min_score,
 )
 reid = ReIDService(
     match_threshold=settings.reid_match_threshold,
