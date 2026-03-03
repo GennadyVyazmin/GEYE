@@ -2,6 +2,7 @@ import threading
 import time
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 import cv2
@@ -18,6 +19,7 @@ class VideoProcessor:
         self,
         rtsp_url: str,
         model_path: str,
+        tracker_config_path: str,
         conf: float,
         iou: float,
         min_person_box_height_px: int,
@@ -34,6 +36,8 @@ class VideoProcessor:
         self.rtsp_url = rtsp_url
         self.conf = conf
         self.iou = iou
+        tpath = Path(tracker_config_path)
+        self.tracker_config_path = str(tpath.resolve()) if tpath.exists() else None
         self.min_person_box_height_px = max(1, int(min_person_box_height_px))
         self.min_person_box_area_ratio = max(0.0, float(min_person_box_area_ratio))
         self.frame_max_width = max(320, frame_max_width)
@@ -92,6 +96,7 @@ class VideoProcessor:
                 results = self.model.track(
                     source=frame,
                     persist=True,
+                    tracker=self.tracker_config_path,
                     classes=[0],  # person
                     conf=self.conf,
                     iou=self.iou,

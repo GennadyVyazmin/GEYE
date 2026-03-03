@@ -59,6 +59,7 @@ cp .env.example .env
 - `REID_MATCH_THRESHOLD` - строгость сопоставления при повторном входе,
 - `REID_WEAK_MATCH_THRESHOLD`, `REID_WEAK_MARGIN` и `REID_WEAK_MATCH_RECENCY_SEC` - мягкое сопоставление для сценария "вернулся в другой позе/одежде",
 - `REID_MAX_ABSENCE_SEC` - как долго хранить профиль человека для повторной идентификации,
+- `TRACKER_CONFIG_PATH` - конфиг трекера (рекомендуется ByteTrack с увеличенным `track_buffer`),
 - `MIN_PERSON_BOX_HEIGHT_PX` и `MIN_PERSON_BOX_AREA_RATIO` - отсев ложных мелких детекций (например предметов на полу),
 - `COUNT_CONFIRM_MIN_HITS` и `COUNT_CONFIRM_MIN_AGE_SEC` - подтверждение нового гостя перед записью в статистику,
 - `UNIQUE_REQUIRE_FACE_FOR_COUNT` и `FACE_CONFIRM_MIN_HITS` - учитывать уникального только при подтверждении по лицу,

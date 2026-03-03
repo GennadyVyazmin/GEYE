@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     app_port: int = 8000
     rtsp_url: str = "rtsp://user:password@camera-ip:554/stream1"
     model_path: str = "yolov8n.pt"
+    tracker_config_path: str = "app/tracker_bytetrack.yaml"
     detector_conf: float = 0.35
     detector_iou: float = 0.5
     min_person_box_height_px: int = 60
@@ -32,8 +33,8 @@ class Settings(BaseSettings):
     line_y_ratio: float = 0.55
     crossing_debounce_sec: float = 2.0
     reid_match_threshold: float = 0.68
-    reid_weak_match_threshold: float = 0.45
-    reid_weak_margin: float = 0.06
+    reid_weak_match_threshold: float = 0.35
+    reid_weak_margin: float = 0.01
     reid_weak_match_recency_sec: float = 7200.0
     reid_max_absence_sec: float = 86400.0
     track_ttl_sec: float = 15.0

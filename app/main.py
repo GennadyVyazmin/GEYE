@@ -84,6 +84,7 @@ reid = ReIDService(
 processor = VideoProcessor(
     rtsp_url=settings.rtsp_url,
     model_path=settings.model_path,
+    tracker_config_path=settings.tracker_config_path,
     conf=settings.detector_conf,
     iou=settings.detector_iou,
     min_person_box_height_px=settings.min_person_box_height_px,
