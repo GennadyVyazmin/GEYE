@@ -24,6 +24,7 @@ MVP-сервер для:
 - `POST /api/reset-all` - полный сброс: очистка событий/фото/регистрации и сброс счетчика `global_id` к 1.
 - `GET /api/gallery?window=online|hour|day` - фото уникальных людей (приоритет на лицо анфас).
 - `POST /api/people/register` и `GET /api/people/{global_id}` - ручная регистрация человека по `G`-ID.
+  После регистрации формируется face-профиль для ID-lock (если доступно фото лица).
 
 ## Важно про "идентификацию каждого"
 
@@ -64,6 +65,7 @@ cp .env.example .env
 - `COUNT_CONFIRM_MIN_HITS` и `COUNT_CONFIRM_MIN_AGE_SEC` - подтверждение нового гостя перед записью в статистику,
 - `UNIQUE_REQUIRE_FACE_FOR_COUNT` и `FACE_CONFIRM_MIN_HITS` - учитывать уникального только при подтверждении по лицу,
 - `PHOTO_DIR`, `PHOTO_CAPTURE_ONCE_PER_ID`, `PHOTO_UPDATE_INTERVAL_SEC`, `GALLERY_LIMIT` - параметры фото-галереи,
+- `FACE_LOCK_MATCH_THRESHOLD`, `FACE_LOCK_MARGIN` - жесткость ID-lock по зарегистрированным лицам,
 - `RTSP_LOW_LATENCY_MODE`, `RTSP_DRAIN_GRABS` - уменьшение накопления задержки RTSP.
 
 Рекомендуемый базовый профиль против ложных уникальных:

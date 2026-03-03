@@ -95,6 +95,15 @@ def init_db(db_path: str) -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS person_face_profiles (
+                global_id INTEGER PRIMARY KEY,
+                embedding_json TEXT NOT NULL,
+                updated_ts TEXT NOT NULL
+            )
+            """
+        )
         conn.commit()
     finally:
         conn.close()

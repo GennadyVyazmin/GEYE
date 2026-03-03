@@ -87,6 +87,34 @@ class ReIDService:
             self._track_last_seen.clear()
             self._identities.clear()
 
+    def rebind_track(self, track_id: int, global_id: int, now: datetime) -> None:
+        with self._lock:
+            self._track_to_global[track_id] = global_id
+            self._track_last_seen[track_id] = now
+            if global_id >= self._next_global_id:
+                self._next_global_id = global_id + 1
+
+    def force_new_global_id(
+        self,
+        track_id: int,
+        bbox_xyxy: tuple[int, int, int, int],
+        frame_bgr: np.ndarray,
+        now: datetime,
+    ) -> int:
+        embedding = self._extract_embedding(frame_bgr, bbox_xyxy)
+        center_norm_xy = self._bbox_center_norm(bbox_xyxy, frame_bgr.shape[1], frame_bgr.shape[0])
+        with self._lock:
+            global_id = self._next_global_id
+            self._next_global_id += 1
+            self._identities[global_id] = IdentityState(
+                embedding=embedding,
+                last_seen=now,
+                center_norm_xy=center_norm_xy,
+            )
+            self._track_to_global[track_id] = global_id
+            self._track_last_seen[track_id] = now
+            return global_id
+
     def _cleanup_tracks(self, now: datetime) -> None:
         stale = [
             track_id

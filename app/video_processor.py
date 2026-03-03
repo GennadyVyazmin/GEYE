@@ -128,13 +128,39 @@ class VideoProcessor:
                             frame_bgr=frame,
                             now=now,
                         )
-                        face_confirmed = self.gallery.register_detection(
+                        face_result = self.gallery.register_detection(
                             global_id=global_id,
                             frame_bgr=frame,
                             person_bbox_xyxy=(x1, y1, x2, y2),
                             now=now,
                         )
-                        self.analytics.register_seen(global_id, now, face_confirmed=face_confirmed)
+                        if (
+                            face_result.locked_global_id is not None
+                            and face_result.locked_global_id != global_id
+                        ):
+                            global_id = face_result.locked_global_id
+                            self.reid.rebind_track(track_id=track_id, global_id=global_id, now=now)
+                        elif (
+                            face_result.face_confirmed
+                            and face_result.locked_global_id is None
+                            and self.gallery.has_locked_profile(global_id)
+                        ):
+                            # Protect registered IDs from hijacking by body/clothes-only ReID matches.
+                            global_id = self.reid.force_new_global_id(
+                                track_id=track_id,
+                                bbox_xyxy=(x1, y1, x2, y2),
+                                frame_bgr=frame,
+                                now=now,
+                            )
+                            face_result = self.gallery.register_detection(
+                                global_id=global_id,
+                                frame_bgr=frame,
+                                person_bbox_xyxy=(x1, y1, x2, y2),
+                                now=now,
+                            )
+                        self.analytics.register_seen(
+                            global_id, now, face_confirmed=face_result.face_confirmed
+                        )
                         if self.analytics.enable_line_crossing:
                             center_y = (y1 + y2) / 2.0
                             self.analytics.register_position(

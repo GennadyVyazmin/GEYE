@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     photo_capture_once_per_id: bool = True
     photo_update_interval_sec: float = 4.0
     gallery_limit: int = 120
+    face_lock_match_threshold: float = 0.72
+    face_lock_margin: float = 0.05
     enable_line_crossing: bool = False
     line_y_ratio: float = 0.55
     crossing_debounce_sec: float = 2.0

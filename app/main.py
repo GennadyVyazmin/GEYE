@@ -71,6 +71,8 @@ gallery = PhotoGalleryService(
     photo_capture_once_per_id=settings.photo_capture_once_per_id,
     photo_update_interval_sec=settings.photo_update_interval_sec,
     gallery_limit=settings.gallery_limit,
+    face_lock_match_threshold=settings.face_lock_match_threshold,
+    face_lock_margin=settings.face_lock_margin,
 )
 reid = ReIDService(
     match_threshold=settings.reid_match_threshold,
@@ -148,6 +150,7 @@ async def reset_all():
     gallery.reset_state(clear_files=True)
     with db_conn(settings.db_path) as conn:
         conn.execute("DELETE FROM person_registry")
+        conn.execute("DELETE FROM person_face_profiles")
         conn.commit()
     reid.reset_state(reset_counter=True, start_global_id=1)
     return {
@@ -232,7 +235,13 @@ async def register_person(payload: RegisterPersonPayload):
             (payload.global_id, name, payload.note.strip(), now, now),
         )
         conn.commit()
-    return {"status": "ok", "global_id": payload.global_id, "display_name": name}
+    profile_ok = gallery.upsert_face_profile_for_global(payload.global_id)
+    return {
+        "status": "ok",
+        "global_id": payload.global_id,
+        "display_name": name,
+        "face_profile_ready": profile_ok,
+    }
 
 
 @app.get("/health")

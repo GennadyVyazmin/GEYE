@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import threading
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -8,6 +10,12 @@ import cv2
 import numpy as np
 
 from .db import db_conn
+
+
+@dataclass
+class FaceDetectionResult:
+    face_confirmed: bool
+    locked_global_id: int | None
 
 
 class PhotoGalleryService:
@@ -19,6 +27,8 @@ class PhotoGalleryService:
         photo_capture_once_per_id: bool,
         photo_update_interval_sec: float,
         gallery_limit: int,
+        face_lock_match_threshold: float,
+        face_lock_margin: float,
     ) -> None:
         self.db_path = db_path
         self.session_id = session_id
@@ -27,10 +37,13 @@ class PhotoGalleryService:
         self.photo_capture_once_per_id = photo_capture_once_per_id
         self.photo_update_interval = timedelta(seconds=max(0.5, photo_update_interval_sec))
         self.gallery_limit = max(1, gallery_limit)
+        self.face_lock_match_threshold = max(0.0, min(1.0, face_lock_match_threshold))
+        self.face_lock_margin = max(0.0, min(0.5, face_lock_margin))
         self._lock = threading.Lock()
         self._last_saved_by_global: dict[int, datetime] = {}
         self._best_score_by_global: dict[int, float] = {}
         self._has_photo_by_global: set[int] = set()
+        self._locked_profiles: dict[int, np.ndarray] = {}
 
         cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
         self.face_detector = cv2.CascadeClassifier(cascade_path)
@@ -38,18 +51,21 @@ class PhotoGalleryService:
         self.profile_face_detector = cv2.CascadeClassifier(profile_path)
         eyes_path = cv2.data.haarcascades + "haarcascade_eye_tree_eyeglasses.xml"
         self.eye_detector = cv2.CascadeClassifier(eyes_path)
+        self._reload_locked_profiles()
 
     def reset_state(self, clear_files: bool = False) -> None:
         with self._lock:
             self._last_saved_by_global.clear()
             self._best_score_by_global.clear()
             self._has_photo_by_global.clear()
+            self._locked_profiles.clear()
         if clear_files:
             for p in self.capture_dir.glob("*.jpg"):
                 try:
                     p.unlink()
                 except OSError:
                     pass
+        self._reload_locked_profiles()
 
     def register_detection(
         self,
@@ -57,25 +73,28 @@ class PhotoGalleryService:
         frame_bgr: np.ndarray,
         person_bbox_xyxy: tuple[int, int, int, int],
         now: datetime,
-    ) -> bool:
+    ) -> FaceDetectionResult:
         person_crop = self._crop(frame_bgr, person_bbox_xyxy)
         if person_crop is None:
-            return False
+            return FaceDetectionResult(face_confirmed=False, locked_global_id=None)
 
         face_crop, score = self._extract_best_face(person_crop)
         if face_crop is None:
-            return False
+            return FaceDetectionResult(face_confirmed=False, locked_global_id=None)
+
+        face_embedding = self._extract_face_embedding(face_crop)
+        locked_global_id = self._match_locked_profile(face_embedding)
 
         with self._lock:
             if self.photo_capture_once_per_id and global_id in self._has_photo_by_global:
-                return True
+                return FaceDetectionResult(face_confirmed=True, locked_global_id=locked_global_id)
             last_saved = self._last_saved_by_global.get(global_id)
             best_score = self._best_score_by_global.get(global_id, 0.0)
             if last_saved is not None and (now - last_saved) < self.photo_update_interval:
-                return True
+                return FaceDetectionResult(face_confirmed=True, locked_global_id=locked_global_id)
             # Save only when quality is at least comparable to previous best.
             if score + 0.02 < best_score:
-                return True
+                return FaceDetectionResult(face_confirmed=True, locked_global_id=locked_global_id)
             self._last_saved_by_global[global_id] = now
             self._best_score_by_global[global_id] = max(best_score, score)
 
@@ -83,7 +102,7 @@ class PhotoGalleryService:
         abs_path = self.capture_dir / filename
         ok = cv2.imwrite(str(abs_path), face_crop)
         if not ok:
-            return True
+            return FaceDetectionResult(face_confirmed=True, locked_global_id=locked_global_id)
 
         with db_conn(self.db_path) as conn:
             conn.execute(
@@ -96,7 +115,88 @@ class PhotoGalleryService:
             conn.commit()
         with self._lock:
             self._has_photo_by_global.add(global_id)
+        return FaceDetectionResult(face_confirmed=True, locked_global_id=locked_global_id)
+
+    def upsert_face_profile_for_global(self, global_id: int) -> bool:
+        with db_conn(self.db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT image_name
+                FROM face_photos
+                WHERE global_id = ?
+                ORDER BY face_score DESC, ts DESC
+                LIMIT 1
+                """,
+                (global_id,),
+            ).fetchone()
+        if row is None:
+            return False
+        image_name = str(row[0])
+        img_path = self.capture_dir / image_name
+        if not img_path.exists():
+            return False
+        image = cv2.imread(str(img_path))
+        if image is None:
+            return False
+        emb = self._extract_face_embedding(image)
+        now = datetime.now(timezone.utc).isoformat()
+        emb_json = json.dumps(emb.tolist())
+        with db_conn(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO person_face_profiles (global_id, embedding_json, updated_ts)
+                VALUES (?, ?, ?)
+                ON CONFLICT(global_id) DO UPDATE SET
+                    embedding_json=excluded.embedding_json,
+                    updated_ts=excluded.updated_ts
+                """,
+                (global_id, emb_json, now),
+            )
+            conn.commit()
+        self._reload_locked_profiles()
         return True
+
+    def _reload_locked_profiles(self) -> None:
+        with db_conn(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT global_id, embedding_json FROM person_face_profiles"
+            ).fetchall()
+        profiles: dict[int, np.ndarray] = {}
+        for gid, emb_json in rows:
+            try:
+                arr = np.array(json.loads(str(emb_json)), dtype=np.float32)
+                arr = self._normalize(arr)
+                if arr.size > 0:
+                    profiles[int(gid)] = arr
+            except Exception:
+                continue
+        with self._lock:
+            self._locked_profiles = profiles
+
+    def has_locked_profile(self, global_id: int) -> bool:
+        with self._lock:
+            return int(global_id) in self._locked_profiles
+
+    def _match_locked_profile(self, face_embedding: np.ndarray) -> int | None:
+        with self._lock:
+            items = list(self._locked_profiles.items())
+        if not items:
+            return None
+        best_gid = None
+        best_score = -1.0
+        second_score = -1.0
+        for gid, emb in items:
+            score = self._cosine_similarity(face_embedding, emb)
+            if score > best_score:
+                second_score = best_score
+                best_score = score
+                best_gid = gid
+            elif score > second_score:
+                second_score = score
+        margin = best_score - max(0.0, second_score)
+        if best_score >= self.face_lock_match_threshold and margin >= self.face_lock_margin:
+            return best_gid
+        return None
 
     def list_people(self, window: str, online_ids: list[int]) -> dict:
         now = datetime.now(timezone.utc)
@@ -283,3 +383,23 @@ class PhotoGalleryService:
         if face_crop.size == 0:
             return None, 0.0
         return face_crop, float(best_score)
+
+    @staticmethod
+    def _extract_face_embedding(face_crop_bgr: np.ndarray) -> np.ndarray:
+        hsv = cv2.cvtColor(face_crop_bgr, cv2.COLOR_BGR2HSV)
+        hist = cv2.calcHist([hsv], [0, 1, 2], None, [12, 12, 12], [0, 180, 0, 256, 0, 256])
+        hist = hist.flatten().astype(np.float32)
+        return PhotoGalleryService._normalize(hist)
+
+    @staticmethod
+    def _normalize(vec: np.ndarray) -> np.ndarray:
+        norm = np.linalg.norm(vec)
+        if norm == 0.0:
+            return vec
+        return vec / norm
+
+    @staticmethod
+    def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
+        if a.size == 0 or b.size == 0:
+            return 0.0
+        return float(np.dot(a, b))
