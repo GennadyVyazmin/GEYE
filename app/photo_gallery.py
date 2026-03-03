@@ -30,6 +30,9 @@ class PhotoGalleryService:
         face_lock_match_threshold: float,
         face_lock_margin: float,
         face_min_score: float,
+        face_rebind_match_threshold: float,
+        face_rebind_margin: float,
+        face_profiles_refresh_sec: float,
     ) -> None:
         self.db_path = db_path
         self.session_id = session_id
@@ -41,17 +44,23 @@ class PhotoGalleryService:
         self.face_lock_match_threshold = max(0.0, min(1.0, face_lock_match_threshold))
         self.face_lock_margin = max(0.0, min(0.5, face_lock_margin))
         self.face_min_score = max(0.0, min(1.0, face_min_score))
+        self.face_rebind_match_threshold = max(0.0, min(1.0, face_rebind_match_threshold))
+        self.face_rebind_margin = max(0.0, min(0.5, face_rebind_margin))
+        self.face_profiles_refresh_interval = timedelta(seconds=max(2.0, face_profiles_refresh_sec))
         self._lock = threading.Lock()
         self._last_saved_by_global: dict[int, datetime] = {}
         self._best_score_by_global: dict[int, float] = {}
         self._has_photo_by_global: set[int] = set()
         self._locked_profiles: dict[int, np.ndarray] = {}
+        self._photo_profiles: dict[int, np.ndarray] = {}
+        self._last_photo_profiles_reload: datetime = datetime.min.replace(tzinfo=timezone.utc)
 
         cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
         self.face_detector = cv2.CascadeClassifier(cascade_path)
         eyes_path = cv2.data.haarcascades + "haarcascade_eye_tree_eyeglasses.xml"
         self.eye_detector = cv2.CascadeClassifier(eyes_path)
         self._reload_locked_profiles()
+        self._reload_photo_profiles()
 
     def reset_state(self, clear_files: bool = False) -> None:
         with self._lock:
@@ -59,6 +68,8 @@ class PhotoGalleryService:
             self._best_score_by_global.clear()
             self._has_photo_by_global.clear()
             self._locked_profiles.clear()
+            self._photo_profiles.clear()
+            self._last_photo_profiles_reload = datetime.min.replace(tzinfo=timezone.utc)
         if clear_files:
             for p in self.capture_dir.glob("*.jpg"):
                 try:
@@ -84,6 +95,9 @@ class PhotoGalleryService:
 
         face_embedding = self._extract_face_embedding(face_crop)
         locked_global_id = self._match_locked_profile(face_embedding)
+        if locked_global_id is None:
+            self._maybe_reload_photo_profiles(now)
+            locked_global_id = self._match_photo_profile(face_embedding, current_global_id=global_id)
 
         with self._lock:
             if self.photo_capture_once_per_id and global_id in self._has_photo_by_global:
@@ -115,6 +129,8 @@ class PhotoGalleryService:
             conn.commit()
         with self._lock:
             self._has_photo_by_global.add(global_id)
+        if locked_global_id is None:
+            self._maybe_reload_photo_profiles(now, force=True)
         return FaceDetectionResult(face_confirmed=True, locked_global_id=locked_global_id)
 
     def upsert_face_profile_for_global(self, global_id: int) -> bool:
@@ -154,6 +170,7 @@ class PhotoGalleryService:
             )
             conn.commit()
         self._reload_locked_profiles()
+        self._reload_photo_profiles()
         return True
 
     def _reload_locked_profiles(self) -> None:
@@ -172,6 +189,44 @@ class PhotoGalleryService:
                 continue
         with self._lock:
             self._locked_profiles = profiles
+
+    def _reload_photo_profiles(self) -> None:
+        with db_conn(self.db_path) as conn:
+            rows = conn.execute(
+                """
+                SELECT global_id, image_name
+                FROM face_photos
+                ORDER BY face_score DESC, ts DESC
+                LIMIT 2000
+                """
+            ).fetchall()
+        profiles: dict[int, np.ndarray] = {}
+        for global_id, image_name in rows:
+            gid = int(global_id)
+            if gid in profiles:
+                continue
+            img_path = self.capture_dir / str(image_name)
+            if not img_path.exists():
+                continue
+            image = cv2.imread(str(img_path))
+            if image is None:
+                continue
+            emb = self._extract_face_embedding(image)
+            if emb.size == 0:
+                continue
+            profiles[gid] = emb
+            if len(profiles) >= self.gallery_limit * 3:
+                break
+        with self._lock:
+            self._photo_profiles = profiles
+            self._last_photo_profiles_reload = datetime.now(timezone.utc)
+
+    def _maybe_reload_photo_profiles(self, now: datetime, force: bool = False) -> None:
+        with self._lock:
+            last_reload = self._last_photo_profiles_reload
+        if not force and (now - last_reload) < self.face_profiles_refresh_interval:
+            return
+        self._reload_photo_profiles()
 
     def has_locked_profile(self, global_id: int) -> bool:
         with self._lock:
@@ -196,6 +251,29 @@ class PhotoGalleryService:
         margin = best_score - max(0.0, second_score)
         if best_score >= self.face_lock_match_threshold and margin >= self.face_lock_margin:
             return best_gid
+        return None
+
+    def _match_photo_profile(self, face_embedding: np.ndarray, current_global_id: int) -> int | None:
+        with self._lock:
+            items = list(self._photo_profiles.items())
+        if not items:
+            return None
+        best_gid = None
+        best_score = -1.0
+        second_score = -1.0
+        for gid, emb in items:
+            score = self._cosine_similarity(face_embedding, emb)
+            if score > best_score:
+                second_score = best_score
+                best_score = score
+                best_gid = gid
+            elif score > second_score:
+                second_score = score
+        margin = best_score - max(0.0, second_score)
+        if best_score >= self.face_rebind_match_threshold and margin >= self.face_rebind_margin:
+            if int(best_gid) == int(current_global_id):
+                return int(current_global_id)
+            return int(best_gid)
         return None
 
     def list_people(self, window: str, online_ids: list[int]) -> dict:
@@ -323,8 +401,8 @@ class PhotoGalleryService:
         faces_frontal = self.face_detector.detectMultiScale(
             gray,
             scaleFactor=1.1,
-            minNeighbors=5,
-            minSize=(30, 30),
+            minNeighbors=4,
+            minSize=(24, 24),
         )
         faces = list(faces_frontal)
         if len(faces) == 0:
@@ -338,12 +416,12 @@ class PhotoGalleryService:
         for x, y, fw, fh in faces:
             area_ratio = (fw * fh) / float(max(1, w * h))
             aspect = fw / float(max(1, fh))
-            if area_ratio < 0.03:
+            if area_ratio < 0.02:
                 continue
             if aspect < 0.72 or aspect > 1.42:
                 continue
             # Face should be in upper portion of person crop; rejects many object false positives.
-            if (y + (fh / 2.0)) > (h * 0.62):
+            if (y + (fh / 2.0)) > (h * 0.70):
                 continue
             fx = x + (fw / 2.0)
             fy = y + (fh / 2.0)
@@ -357,7 +435,7 @@ class PhotoGalleryService:
                 minNeighbors=3,
                 minSize=(10, 10),
             )
-            if len(eyes) < 1:
+            if len(eyes) < 1 and area_ratio < 0.09:
                 continue
             eye_score = min(1.0, len(eyes) / 2.0)
             score = (0.55 * area_ratio) + (0.25 * center_score) + (0.20 * eye_score)
