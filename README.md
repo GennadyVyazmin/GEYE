@@ -75,7 +75,7 @@ cp .env.example .env
 - `FACE_PROFILES_REFRESH_SEC` - как часто обновлять кеш фото-профилей для авто-возврата G-ID,
 - `FACE_PROFILE_BANK_PER_ID`, `FACE_REBIND_MIN_VOTES` - сравнение по серии фото (несколько лучших кадров на ID),
 - `FACE_PREFER_LOCKED_DELTA` - при равных score отдавать приоритет зарегистрированному (locked) ID,
-- `FACE_GLOBAL_DEDUP_THRESHOLD`, `FACE_GLOBAL_DEDUP_UNKNOWN_THRESHOLD`, `FACE_GLOBAL_DEDUP_INTERVAL_SEC` - фоновое авто-слияние дублей G-ID по лицу,
+- `FACE_GLOBAL_DEDUP_THRESHOLD`, `FACE_GLOBAL_DEDUP_UNKNOWN_THRESHOLD`, `FACE_REENTRY_MERGE_THRESHOLD`, `FACE_GLOBAL_DEDUP_INTERVAL_SEC` - фоновое авто-слияние дублей G-ID по лицу (в том числе сценарий "вышел/вернулся"),
 - `FACE_STABLE_SIM_THRESHOLD`, `FACE_STABLE_MIN_HITS` - новый ID подтверждается только после нескольких согласованных face-кадров,
 - `FACE_LOCKED_RELAXED_THRESHOLD` - мягкий порог для привязки/слияния к зарегистрированному ID,
 - `RTSP_LOW_LATENCY_MODE`, `RTSP_DRAIN_GRABS` - уменьшение накопления задержки RTSP.

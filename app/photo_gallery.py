@@ -42,6 +42,7 @@ class PhotoGalleryService:
         face_prefer_locked_delta: float,
         face_global_dedup_threshold: float,
         face_global_dedup_unknown_threshold: float,
+        face_reentry_merge_threshold: float,
         face_global_dedup_interval_sec: float,
         face_stable_sim_threshold: float,
         face_stable_min_hits: int,
@@ -72,6 +73,7 @@ class PhotoGalleryService:
         self.face_global_dedup_unknown_threshold = max(
             0.0, min(1.0, float(face_global_dedup_unknown_threshold))
         )
+        self.face_reentry_merge_threshold = max(0.0, min(1.0, float(face_reentry_merge_threshold)))
         self.face_global_dedup_interval = timedelta(seconds=max(5.0, float(face_global_dedup_interval_sec)))
         self.face_stable_sim_threshold = max(0.0, min(1.0, float(face_stable_sim_threshold)))
         self.face_stable_min_hits = max(1, int(face_stable_min_hits))
@@ -477,11 +479,18 @@ class PhotoGalleryService:
                 threshold = self.face_global_dedup_threshold
                 if (a in locked_ids) ^ (b in locked_ids):
                     threshold = min(threshold, self.face_locked_relaxed_threshold)
+                a_online = a in online_set
+                b_online = b in online_set
+                # Re-entry case: one ID is currently online, other is offline (left and came back).
+                # Allow softer merge only in this asymmetric case.
+                if a_online ^ b_online:
+                    threshold = min(threshold, self.face_reentry_merge_threshold)
                 if a not in locked_ids and b not in locked_ids:
                     # Unknown-vs-unknown merges are allowed only with very high similarity
                     # and never when both IDs are online at the same time.
-                    threshold = max(threshold, self.face_global_dedup_unknown_threshold)
-                    if a in online_set and b in online_set:
+                    if not (a_online ^ b_online):
+                        threshold = max(threshold, self.face_global_dedup_unknown_threshold)
+                    if a_online and b_online:
                         continue
                 if sim < threshold:
                     continue
