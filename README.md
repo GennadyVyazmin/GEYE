@@ -72,6 +72,7 @@ cp .env.example .env
 - `FACE_PROFILE_BANK_PER_ID`, `FACE_REBIND_MIN_VOTES` - сравнение по серии фото (несколько лучших кадров на ID),
 - `FACE_PREFER_LOCKED_DELTA` - при равных score отдавать приоритет зарегистрированному (locked) ID,
 - `FACE_GLOBAL_DEDUP_THRESHOLD`, `FACE_GLOBAL_DEDUP_INTERVAL_SEC` - фоновое авто-слияние дублей G-ID по лицу,
+- `FACE_STABLE_SIM_THRESHOLD`, `FACE_STABLE_MIN_HITS` - новый ID подтверждается только после нескольких согласованных face-кадров,
 - `RTSP_LOW_LATENCY_MODE`, `RTSP_DRAIN_GRABS` - уменьшение накопления задержки RTSP.
 
 Рекомендуемый базовый профиль против ложных уникальных:

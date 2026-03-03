@@ -39,6 +39,8 @@ class PhotoGalleryService:
         face_prefer_locked_delta: float,
         face_global_dedup_threshold: float,
         face_global_dedup_interval_sec: float,
+        face_stable_sim_threshold: float,
+        face_stable_min_hits: int,
     ) -> None:
         self.db_path = db_path
         self.session_id = session_id
@@ -59,6 +61,8 @@ class PhotoGalleryService:
         self.face_prefer_locked_delta = max(0.0, min(0.3, float(face_prefer_locked_delta)))
         self.face_global_dedup_threshold = max(0.0, min(1.0, float(face_global_dedup_threshold)))
         self.face_global_dedup_interval = timedelta(seconds=max(5.0, float(face_global_dedup_interval_sec)))
+        self.face_stable_sim_threshold = max(0.0, min(1.0, float(face_stable_sim_threshold)))
+        self.face_stable_min_hits = max(1, int(face_stable_min_hits))
         self._lock = threading.Lock()
         self._last_saved_by_global: dict[int, datetime] = {}
         self._best_score_by_global: dict[int, float] = {}
@@ -67,6 +71,8 @@ class PhotoGalleryService:
         self._photo_profiles: dict[int, list[np.ndarray]] = {}
         self._last_photo_profiles_reload: datetime = datetime.min.replace(tzinfo=timezone.utc)
         self._last_global_dedup_at: datetime = datetime.min.replace(tzinfo=timezone.utc)
+        self._stable_face_hits_by_global: dict[int, int] = {}
+        self._stable_face_embedding_by_global: dict[int, np.ndarray] = {}
 
         cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
         self.face_detector = cv2.CascadeClassifier(cascade_path)
@@ -84,6 +90,8 @@ class PhotoGalleryService:
             self._photo_profiles.clear()
             self._last_photo_profiles_reload = datetime.min.replace(tzinfo=timezone.utc)
             self._last_global_dedup_at = datetime.min.replace(tzinfo=timezone.utc)
+            self._stable_face_hits_by_global.clear()
+            self._stable_face_embedding_by_global.clear()
         if clear_files:
             for p in self.capture_dir.glob("*.jpg"):
                 try:
@@ -112,17 +120,28 @@ class PhotoGalleryService:
         if locked_global_id is None:
             self._maybe_reload_photo_profiles(now)
             locked_global_id = self._match_photo_profile(face_embedding, current_global_id=global_id)
+        effective_global_id = int(locked_global_id) if locked_global_id is not None else int(global_id)
+        face_stable = self._register_stable_face_hit(effective_global_id, face_embedding)
 
         with self._lock:
             if self.photo_capture_once_per_id and global_id in self._has_photo_by_global:
-                return FaceDetectionResult(face_confirmed=True, locked_global_id=locked_global_id)
+                return FaceDetectionResult(
+                    face_confirmed=face_stable,
+                    locked_global_id=locked_global_id,
+                )
             last_saved = self._last_saved_by_global.get(global_id)
             best_score = self._best_score_by_global.get(global_id, 0.0)
             if last_saved is not None and (now - last_saved) < self.photo_update_interval:
-                return FaceDetectionResult(face_confirmed=True, locked_global_id=locked_global_id)
+                return FaceDetectionResult(
+                    face_confirmed=face_stable,
+                    locked_global_id=locked_global_id,
+                )
             # Save only when quality is at least comparable to previous best.
             if score + 0.02 < best_score:
-                return FaceDetectionResult(face_confirmed=True, locked_global_id=locked_global_id)
+                return FaceDetectionResult(
+                    face_confirmed=face_stable,
+                    locked_global_id=locked_global_id,
+                )
             self._last_saved_by_global[global_id] = now
             self._best_score_by_global[global_id] = max(best_score, score)
 
@@ -130,7 +149,7 @@ class PhotoGalleryService:
         abs_path = self.capture_dir / filename
         ok = cv2.imwrite(str(abs_path), face_crop)
         if not ok:
-            return FaceDetectionResult(face_confirmed=True, locked_global_id=locked_global_id)
+            return FaceDetectionResult(face_confirmed=face_stable, locked_global_id=locked_global_id)
 
         with db_conn(self.db_path) as conn:
             conn.execute(
@@ -145,7 +164,7 @@ class PhotoGalleryService:
             self._has_photo_by_global.add(global_id)
         if locked_global_id is None:
             self._maybe_reload_photo_profiles(now, force=True)
-        return FaceDetectionResult(face_confirmed=True, locked_global_id=locked_global_id)
+        return FaceDetectionResult(face_confirmed=face_stable, locked_global_id=locked_global_id)
 
     def upsert_face_profile_for_global(self, global_id: int) -> bool:
         with db_conn(self.db_path) as conn:
@@ -235,6 +254,21 @@ class PhotoGalleryService:
             if from_last is not None and (to_last is None or from_last > to_last):
                 self._last_saved_by_global[to_global_id] = from_last
             self._last_saved_by_global.pop(from_global_id, None)
+            if from_global_id in self._stable_face_hits_by_global:
+                self._stable_face_hits_by_global[to_global_id] = max(
+                    self._stable_face_hits_by_global.get(to_global_id, 0),
+                    self._stable_face_hits_by_global[from_global_id],
+                )
+            self._stable_face_hits_by_global.pop(from_global_id, None)
+            if from_global_id in self._stable_face_embedding_by_global:
+                from_emb = self._stable_face_embedding_by_global[from_global_id]
+                to_emb = self._stable_face_embedding_by_global.get(to_global_id)
+                if to_emb is None:
+                    self._stable_face_embedding_by_global[to_global_id] = from_emb
+                else:
+                    merged = self._normalize((0.6 * to_emb) + (0.4 * from_emb))
+                    self._stable_face_embedding_by_global[to_global_id] = merged
+            self._stable_face_embedding_by_global.pop(from_global_id, None)
 
         self._reload_locked_profiles()
         self._reload_photo_profiles()
@@ -411,6 +445,25 @@ class PhotoGalleryService:
                 merges.append((from_gid, to_gid))
                 blocked.add(from_gid)
         return merges
+
+    def _register_stable_face_hit(self, global_id: int, face_embedding: np.ndarray) -> bool:
+        with self._lock:
+            prev = self._stable_face_embedding_by_global.get(global_id)
+            if prev is None:
+                self._stable_face_embedding_by_global[global_id] = face_embedding
+                self._stable_face_hits_by_global[global_id] = 1
+                return self.face_stable_min_hits <= 1
+            sim = self._cosine_similarity(prev, face_embedding)
+            if sim >= self.face_stable_sim_threshold:
+                hits = self._stable_face_hits_by_global.get(global_id, 1) + 1
+                self._stable_face_hits_by_global[global_id] = hits
+                self._stable_face_embedding_by_global[global_id] = self._normalize(
+                    (0.8 * prev) + (0.2 * face_embedding)
+                )
+            else:
+                self._stable_face_hits_by_global[global_id] = 1
+                self._stable_face_embedding_by_global[global_id] = face_embedding
+            return self._stable_face_hits_by_global.get(global_id, 0) >= self.face_stable_min_hits
 
     def list_people(self, window: str, online_ids: list[int]) -> dict:
         now = datetime.now(timezone.utc)

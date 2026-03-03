@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     face_prefer_locked_delta: float = 0.08
     face_global_dedup_threshold: float = 0.88
     face_global_dedup_interval_sec: float = 20.0
+    face_stable_sim_threshold: float = 0.80
+    face_stable_min_hits: int = 2
     enable_line_crossing: bool = False
     line_y_ratio: float = 0.55
     crossing_debounce_sec: float = 2.0
