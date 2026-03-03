@@ -70,6 +70,10 @@ cp .env.example .env
 - `REID_MATCH_THRESHOLD=0.68`
 - `COUNT_CONFIRM_MIN_AGE_SEC=4.0`
 - `TRACK_TTL_SEC=15.0`
+- Для защиты от "перехвата ID" новым человеком:
+- `REID_WEAK_MATCH_THRESHOLD=0.50`
+- `REID_WEAK_MARGIN=0.08`
+- `REID_WEAK_MATCH_RECENCY_SEC=120`
 
 3. Запуск сервера:
 

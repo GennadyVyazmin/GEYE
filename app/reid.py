@@ -121,7 +121,7 @@ class ReIDService:
             elif score > second_best_score:
                 second_best_score = score
             dist = self._center_distance(center_norm_xy, state.center_norm_xy)
-            if dist <= 0.22:
+            if dist <= 0.18:
                 if (now - state.last_seen) <= self.weak_match_recency:
                     near_recent_candidates += 1
                 if score > near_best_score:
@@ -132,14 +132,7 @@ class ReIDService:
                     near_second_best_score = score
         if best_score >= self.match_threshold:
             return best_id
-        # Soft fallback: if scene recently had essentially one candidate,
-        # allow weaker appearance match to keep ID stable after pose/hood/back changes.
-        best_margin = best_score - max(0.0, second_best_score)
-        if best_score >= self.weak_match_threshold and (
-            recent_candidates <= 1 or best_margin >= self.weak_margin
-        ):
-            return best_id
-        # Spatial fallback: in multi-person scenes prefer a nearby recent identity.
+        # Conservative weak fallback: only for nearby and very recent identities.
         near_margin = near_best_score - max(0.0, near_second_best_score)
         if near_best_score >= self.weak_match_threshold and (
             near_recent_candidates <= 1 or near_margin >= self.weak_margin
