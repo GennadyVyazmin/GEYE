@@ -34,6 +34,8 @@ class PhotoGalleryService:
 
         cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
         self.face_detector = cv2.CascadeClassifier(cascade_path)
+        profile_path = cv2.data.haarcascades + "haarcascade_profileface.xml"
+        self.profile_face_detector = cv2.CascadeClassifier(profile_path)
         eyes_path = cv2.data.haarcascades + "haarcascade_eye_tree_eyeglasses.xml"
         self.eye_detector = cv2.CascadeClassifier(eyes_path)
 
@@ -218,12 +220,19 @@ class PhotoGalleryService:
 
     def _extract_best_face(self, person_crop: np.ndarray) -> tuple[np.ndarray | None, float]:
         gray = cv2.cvtColor(person_crop, cv2.COLOR_BGR2GRAY)
-        faces = self.face_detector.detectMultiScale(
+        faces_frontal = self.face_detector.detectMultiScale(
             gray,
             scaleFactor=1.1,
-            minNeighbors=5,
-            minSize=(30, 30),
+            minNeighbors=3,
+            minSize=(20, 20),
         )
+        faces_profile = self.profile_face_detector.detectMultiScale(
+            gray,
+            scaleFactor=1.1,
+            minNeighbors=3,
+            minSize=(20, 20),
+        )
+        faces = list(faces_frontal) + list(faces_profile)
         if len(faces) == 0:
             return None, 0.0
 
@@ -235,7 +244,7 @@ class PhotoGalleryService:
         for x, y, fw, fh in faces:
             area_ratio = (fw * fh) / float(max(1, w * h))
             aspect = fw / float(max(1, fh))
-            if area_ratio < 0.02:
+            if area_ratio < 0.01:
                 continue
             if aspect < 0.6 or aspect > 1.8:
                 continue
@@ -248,12 +257,11 @@ class PhotoGalleryService:
             eyes = self.eye_detector.detectMultiScale(
                 face_roi,
                 scaleFactor=1.1,
-                minNeighbors=4,
+                minNeighbors=3,
                 minSize=(10, 10),
             )
             eye_score = min(1.0, len(eyes) / 2.0)
-            if len(eyes) == 0:
-                continue
+            # Eyes can be missed when person wears glasses/looks down; don't hard reject.
             score = (0.5 * area_ratio) + (0.25 * center_score) + (0.25 * eye_score)
             if score > best_score:
                 best_score = score

@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     count_confirm_min_hits: int = 3
     count_confirm_min_age_sec: float = 4.0
     unique_require_face_for_count: bool = True
-    face_confirm_min_hits: int = 2
+    face_confirm_min_hits: int = 1
     online_ttl_sec: float = 2.0
     photo_dir: str = "captures"
     photo_capture_once_per_id: bool = True
