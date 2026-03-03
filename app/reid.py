@@ -18,11 +18,15 @@ class ReIDService:
     def __init__(
         self,
         match_threshold: float,
+        weak_match_threshold: float,
+        weak_match_recency_sec: float,
         max_absence_sec: float,
         track_ttl_sec: float,
         start_global_id: int = 1,
     ) -> None:
         self.match_threshold = match_threshold
+        self.weak_match_threshold = weak_match_threshold
+        self.weak_match_recency = timedelta(seconds=weak_match_recency_sec)
         self.max_absence = timedelta(seconds=max_absence_sec)
         self.track_ttl = timedelta(seconds=track_ttl_sec)
         self._lock = threading.Lock()
@@ -92,14 +96,21 @@ class ReIDService:
     def _match_identity(self, embedding: np.ndarray, now: datetime) -> int | None:
         best_id: int | None = None
         best_score = -1.0
+        recent_candidates = 0
         for global_id, state in self._identities.items():
             if (now - state.last_seen) > self.max_absence:
                 continue
+            if (now - state.last_seen) <= self.weak_match_recency:
+                recent_candidates += 1
             score = self._cosine_similarity(embedding, state.embedding)
             if score > best_score:
                 best_score = score
                 best_id = global_id
         if best_score >= self.match_threshold:
+            return best_id
+        # Soft fallback: if scene recently had essentially one candidate,
+        # allow weaker appearance match to keep ID stable after pose/hood/back changes.
+        if recent_candidates <= 1 and best_score >= self.weak_match_threshold:
             return best_id
         return None
 

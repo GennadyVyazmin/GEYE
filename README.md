@@ -57,6 +57,7 @@ cp .env.example .env
 Ключевые настройки:
 - `ENABLE_LINE_CROSSING=false` - пока отключает логику вход/выход,
 - `REID_MATCH_THRESHOLD` - строгость сопоставления при повторном входе,
+- `REID_WEAK_MATCH_THRESHOLD` и `REID_WEAK_MATCH_RECENCY_SEC` - мягкое сопоставление для сценария "вернулся в другой позе/одежде",
 - `REID_MAX_ABSENCE_SEC` - как долго хранить профиль человека для повторной идентификации,
 - `COUNT_CONFIRM_MIN_HITS` и `COUNT_CONFIRM_MIN_AGE_SEC` - подтверждение нового гостя перед записью в статистику,
 - `UNIQUE_REQUIRE_FACE_FOR_COUNT` и `FACE_CONFIRM_MIN_HITS` - учитывать уникального только при подтверждении по лицу,

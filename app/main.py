@@ -74,6 +74,8 @@ gallery = PhotoGalleryService(
 )
 reid = ReIDService(
     match_threshold=settings.reid_match_threshold,
+    weak_match_threshold=settings.reid_weak_match_threshold,
+    weak_match_recency_sec=settings.reid_weak_match_recency_sec,
     max_absence_sec=settings.reid_max_absence_sec,
     track_ttl_sec=settings.track_ttl_sec,
     start_global_id=load_next_global_id(settings.db_path),
