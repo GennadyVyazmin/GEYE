@@ -55,25 +55,25 @@ class PhotoGalleryService:
         frame_bgr: np.ndarray,
         person_bbox_xyxy: tuple[int, int, int, int],
         now: datetime,
-    ) -> None:
+    ) -> bool:
         person_crop = self._crop(frame_bgr, person_bbox_xyxy)
         if person_crop is None:
-            return
+            return False
 
         face_crop, score = self._extract_best_face(person_crop)
         if face_crop is None:
-            return
+            return False
 
         with self._lock:
             if self.photo_capture_once_per_id and global_id in self._has_photo_by_global:
-                return
+                return True
             last_saved = self._last_saved_by_global.get(global_id)
             best_score = self._best_score_by_global.get(global_id, 0.0)
             if last_saved is not None and (now - last_saved) < self.photo_update_interval:
-                return
+                return True
             # Save only when quality is at least comparable to previous best.
             if score + 0.02 < best_score:
-                return
+                return True
             self._last_saved_by_global[global_id] = now
             self._best_score_by_global[global_id] = max(best_score, score)
 
@@ -81,7 +81,7 @@ class PhotoGalleryService:
         abs_path = self.capture_dir / filename
         ok = cv2.imwrite(str(abs_path), face_crop)
         if not ok:
-            return
+            return True
 
         with db_conn(self.db_path) as conn:
             conn.execute(
@@ -94,6 +94,7 @@ class PhotoGalleryService:
             conn.commit()
         with self._lock:
             self._has_photo_by_global.add(global_id)
+        return True
 
     def list_people(self, window: str, online_ids: list[int]) -> dict:
         now = datetime.now(timezone.utc)

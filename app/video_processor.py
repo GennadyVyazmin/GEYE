@@ -112,13 +112,13 @@ class VideoProcessor:
                             frame_bgr=frame,
                             now=now,
                         )
-                        self.analytics.register_seen(global_id, now)
-                        self.gallery.register_detection(
+                        face_confirmed = self.gallery.register_detection(
                             global_id=global_id,
                             frame_bgr=frame,
                             person_bbox_xyxy=(x1, y1, x2, y2),
                             now=now,
                         )
+                        self.analytics.register_seen(global_id, now, face_confirmed=face_confirmed)
                         if self.analytics.enable_line_crossing:
                             center_y = (y1 + y2) / 2.0
                             self.analytics.register_position(
