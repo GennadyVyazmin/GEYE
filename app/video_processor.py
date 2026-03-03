@@ -115,6 +115,7 @@ class VideoProcessor:
                     cv2.line(rendered, (0, line_y), (frame_w, line_y), (0, 180, 255), 2)
 
                 now = datetime.now(timezone.utc)
+                frame_gid_boxes: dict[int, tuple[int, int, int, int]] = {}
                 if result.boxes is not None and result.boxes.id is not None:
                     ids = [int(x) for x in result.boxes.id.cpu().tolist()]
                     boxes = result.boxes.xyxy.cpu().numpy().astype(np.int32)
@@ -180,6 +181,21 @@ class VideoProcessor:
                                 person_bbox_xyxy=(sx1, sy1, sx2, sy2),
                                 now=now,
                             )
+                        prev_bbox = frame_gid_boxes.get(global_id)
+                        if prev_bbox is not None and self._boxes_far((x1, y1, x2, y2), prev_bbox, frame_w, frame_h):
+                            global_id = self.reid.force_new_global_id(
+                                track_id=track_id,
+                                bbox_xyxy=(sx1, sy1, sx2, sy2),
+                                frame_bgr=source_frame,
+                                now=now,
+                            )
+                            face_result = self.gallery.register_detection(
+                                global_id=global_id,
+                                frame_bgr=source_frame,
+                                person_bbox_xyxy=(sx1, sy1, sx2, sy2),
+                                now=now,
+                            )
+                        frame_gid_boxes[global_id] = (x1, y1, x2, y2)
                         self.analytics.register_seen(
                             global_id, now, face_confirmed=face_result.face_confirmed
                         )
@@ -264,3 +280,25 @@ class VideoProcessor:
         if sy2 <= sy1:
             sy2 = min(max_h, sy1 + 1)
         return sx1, sy1, sx2, sy2
+
+    @staticmethod
+    def _boxes_far(
+        a: tuple[int, int, int, int],
+        b: tuple[int, int, int, int],
+        frame_w: int,
+        frame_h: int,
+    ) -> bool:
+        ax1, ay1, ax2, ay2 = a
+        bx1, by1, bx2, by2 = b
+        ai = max(0, min(ax2, bx2) - max(ax1, bx1)) * max(0, min(ay2, by2) - max(ay1, by1))
+        aa = max(1, (ax2 - ax1) * (ay2 - ay1))
+        ba = max(1, (bx2 - bx1) * (by2 - by1))
+        union = max(1, aa + ba - ai)
+        iou = ai / float(union)
+        acx = (ax1 + ax2) / 2.0
+        acy = (ay1 + ay2) / 2.0
+        bcx = (bx1 + bx2) / 2.0
+        bcy = (by1 + by2) / 2.0
+        dist = float(np.sqrt(((acx - bcx) ** 2) + ((acy - bcy) ** 2)))
+        norm = dist / float(max(1, max(frame_w, frame_h)))
+        return iou < 0.02 and norm > 0.22

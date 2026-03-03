@@ -130,6 +130,8 @@ class PhotoGalleryService:
             return FaceDetectionResult(face_confirmed=False, locked_global_id=None)
 
         face_embedding = self._extract_face_embedding(face_crop)
+        if float(np.linalg.norm(face_embedding)) < 1e-6:
+            return FaceDetectionResult(face_confirmed=False, locked_global_id=None)
         locked_global_id = self._match_locked_profile(face_embedding)
         if locked_global_id is None:
             self._maybe_reload_photo_profiles(now)
@@ -477,6 +479,9 @@ class PhotoGalleryService:
                     continue
                 if stable_hits.get(b, 0) < self.face_stable_min_hits:
                     continue
+                # Conservative: merge unknown IDs only through locked anchor.
+                if a not in locked_ids and b not in locked_ids:
+                    continue
                 if a in locked_ids and b in locked_ids:
                     to_gid = min(a, b)
                 elif a in locked_ids:
@@ -754,8 +759,10 @@ class PhotoGalleryService:
                     best = max(faces, key=lambda f: float(f.bbox[2] - f.bbox[0]) * float(f.bbox[3] - f.bbox[1]))
                     emb = np.array(best.embedding, dtype=np.float32)
                     return self._normalize(emb)
+                # InsightFace active but face embedding not extracted: don't fallback to weak hist.
+                return np.zeros((512,), dtype=np.float32)
             except Exception:
-                pass
+                return np.zeros((512,), dtype=np.float32)
         return self._extract_face_embedding_hist(face_crop_bgr)
 
     @staticmethod
