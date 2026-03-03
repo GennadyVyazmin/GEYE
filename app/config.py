@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     face_profiles_refresh_sec: float = 8.0
     face_profile_bank_per_id: int = 6
     face_rebind_min_votes: int = 2
+    face_rebind_cluster_delta: float = 0.03
     enable_line_crossing: bool = False
     line_y_ratio: float = 0.55
     crossing_debounce_sec: float = 2.0

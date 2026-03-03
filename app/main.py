@@ -79,6 +79,7 @@ gallery = PhotoGalleryService(
     face_profiles_refresh_sec=settings.face_profiles_refresh_sec,
     face_profile_bank_per_id=settings.face_profile_bank_per_id,
     face_rebind_min_votes=settings.face_rebind_min_votes,
+    face_rebind_cluster_delta=settings.face_rebind_cluster_delta,
 )
 reid = ReIDService(
     match_threshold=settings.reid_match_threshold,

@@ -35,6 +35,7 @@ class PhotoGalleryService:
         face_profiles_refresh_sec: float,
         face_profile_bank_per_id: int,
         face_rebind_min_votes: int,
+        face_rebind_cluster_delta: float,
     ) -> None:
         self.db_path = db_path
         self.session_id = session_id
@@ -51,6 +52,7 @@ class PhotoGalleryService:
         self.face_profiles_refresh_interval = timedelta(seconds=max(2.0, face_profiles_refresh_sec))
         self.face_profile_bank_per_id = max(1, int(face_profile_bank_per_id))
         self.face_rebind_min_votes = max(1, int(face_rebind_min_votes))
+        self.face_rebind_cluster_delta = max(0.0, min(0.2, float(face_rebind_cluster_delta)))
         self._lock = threading.Lock()
         self._last_saved_by_global: dict[int, datetime] = {}
         self._best_score_by_global: dict[int, float] = {}
@@ -266,27 +268,35 @@ class PhotoGalleryService:
             items = list(self._photo_profiles.items())
         if not items:
             return None
-        best_gid = None
-        best_score = -1.0
-        second_score = -1.0
+        scored: list[tuple[int, float]] = []
         for gid, embs in items:
             if len(embs) == 0:
                 continue
             sims = sorted((self._cosine_similarity(face_embedding, e) for e in embs), reverse=True)
             votes = min(self.face_rebind_min_votes, len(sims))
             score = float(np.mean(sims[:votes]))
-            if score > best_score:
-                second_score = best_score
-                best_score = score
-                best_gid = gid
-            elif score > second_score:
-                second_score = score
-        if best_gid is None:
+            scored.append((int(gid), score))
+        if not scored:
             return None
+        scored.sort(key=lambda x: x[1], reverse=True)
+        best_gid, best_score = scored[0]
+        if best_score < self.face_rebind_match_threshold:
+            return None
+
+        # If several IDs are almost equally close, collapse them to the oldest (min G-ID).
+        # This removes duplicated IDs of the same person (e.g. G2/G3/G4 for one face).
+        cluster = [
+            gid
+            for gid, score in scored
+            if score >= self.face_rebind_match_threshold
+            and (best_score - score) <= self.face_rebind_cluster_delta
+        ]
+        if cluster:
+            return int(min(cluster))
+
+        second_score = scored[1][1] if len(scored) > 1 else 0.0
         margin = best_score - max(0.0, second_score)
-        if best_score >= self.face_rebind_match_threshold and margin >= self.face_rebind_margin:
-            if int(best_gid) == int(current_global_id):
-                return int(current_global_id)
+        if margin >= self.face_rebind_margin:
             return int(best_gid)
         return None
 
