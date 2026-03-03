@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     crossing_debounce_sec: float = 2.0
     reid_match_threshold: float = 0.68
     reid_weak_match_threshold: float = 0.45
+    reid_weak_margin: float = 0.06
     reid_weak_match_recency_sec: float = 7200.0
     reid_max_absence_sec: float = 86400.0
     track_ttl_sec: float = 15.0

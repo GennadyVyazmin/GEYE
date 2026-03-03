@@ -20,6 +20,7 @@ class ReIDService:
         self,
         match_threshold: float,
         weak_match_threshold: float,
+        weak_margin: float,
         weak_match_recency_sec: float,
         max_absence_sec: float,
         track_ttl_sec: float,
@@ -27,6 +28,7 @@ class ReIDService:
     ) -> None:
         self.match_threshold = match_threshold
         self.weak_match_threshold = weak_match_threshold
+        self.weak_margin = weak_margin
         self.weak_match_recency = timedelta(seconds=weak_match_recency_sec)
         self.max_absence = timedelta(seconds=max_absence_sec)
         self.track_ttl = timedelta(seconds=track_ttl_sec)
@@ -100,9 +102,11 @@ class ReIDService:
     ) -> int | None:
         best_id: int | None = None
         best_score = -1.0
+        second_best_score = -1.0
         recent_candidates = 0
         near_best_id: int | None = None
         near_best_score = -1.0
+        near_second_best_score = -1.0
         near_recent_candidates = 0
         for global_id, state in self._identities.items():
             if (now - state.last_seen) > self.max_absence:
@@ -111,23 +115,35 @@ class ReIDService:
                 recent_candidates += 1
             score = self._cosine_similarity(embedding, state.embedding)
             if score > best_score:
+                second_best_score = best_score
                 best_score = score
                 best_id = global_id
+            elif score > second_best_score:
+                second_best_score = score
             dist = self._center_distance(center_norm_xy, state.center_norm_xy)
             if dist <= 0.22:
                 if (now - state.last_seen) <= self.weak_match_recency:
                     near_recent_candidates += 1
                 if score > near_best_score:
+                    near_second_best_score = near_best_score
                     near_best_score = score
                     near_best_id = global_id
+                elif score > near_second_best_score:
+                    near_second_best_score = score
         if best_score >= self.match_threshold:
             return best_id
         # Soft fallback: if scene recently had essentially one candidate,
         # allow weaker appearance match to keep ID stable after pose/hood/back changes.
-        if recent_candidates <= 1 and best_score >= self.weak_match_threshold:
+        best_margin = best_score - max(0.0, second_best_score)
+        if best_score >= self.weak_match_threshold and (
+            recent_candidates <= 1 or best_margin >= self.weak_margin
+        ):
             return best_id
         # Spatial fallback: in multi-person scenes prefer a nearby recent identity.
-        if near_recent_candidates <= 1 and near_best_score >= self.weak_match_threshold:
+        near_margin = near_best_score - max(0.0, near_second_best_score)
+        if near_best_score >= self.weak_match_threshold and (
+            near_recent_candidates <= 1 or near_margin >= self.weak_margin
+        ):
             return near_best_id
         return None
 
