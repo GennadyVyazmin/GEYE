@@ -425,6 +425,7 @@ class PhotoGalleryService:
             self._last_global_dedup_at = now
             photo_profiles = {gid: list(embs) for gid, embs in self._photo_profiles.items()}
             locked_ids = set(self._locked_profiles.keys())
+            stable_hits = dict(self._stable_face_hits_by_global)
 
         if len(photo_profiles) < 2:
             return []
@@ -452,12 +453,19 @@ class PhotoGalleryService:
                     threshold = min(threshold, self.face_locked_relaxed_threshold)
                 if sim < threshold:
                     continue
-                # Conservative: auto-merge only if at least one side is locked/registered.
-                if a not in locked_ids and b not in locked_ids:
+                # Merge only stable identities to avoid accidental early merges.
+                if stable_hits.get(a, 0) < self.face_stable_min_hits:
+                    continue
+                if stable_hits.get(b, 0) < self.face_stable_min_hits:
                     continue
                 if a in locked_ids and b in locked_ids:
-                    continue
-                to_gid = a if a in locked_ids else b
+                    to_gid = min(a, b)
+                elif a in locked_ids:
+                    to_gid = a
+                elif b in locked_ids:
+                    to_gid = b
+                else:
+                    to_gid = min(a, b)
                 from_gid = b if to_gid == a else a
                 merges.append((from_gid, to_gid))
                 blocked.add(from_gid)
