@@ -5,6 +5,7 @@ import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 
 import cv2
 import numpy as np
@@ -27,6 +28,8 @@ class PhotoGalleryService:
         photo_capture_once_per_id: bool,
         photo_update_interval_sec: float,
         gallery_limit: int,
+        face_embedder: str,
+        face_embedder_ctx_id: int,
         face_lock_match_threshold: float,
         face_lock_margin: float,
         face_min_score: float,
@@ -50,6 +53,10 @@ class PhotoGalleryService:
         self.photo_capture_once_per_id = photo_capture_once_per_id
         self.photo_update_interval = timedelta(seconds=max(0.5, photo_update_interval_sec))
         self.gallery_limit = max(1, gallery_limit)
+        self.face_embedder_mode = str(face_embedder).strip().lower()
+        if self.face_embedder_mode not in {"auto", "insightface", "hist"}:
+            self.face_embedder_mode = "auto"
+        self.face_embedder_ctx_id = int(face_embedder_ctx_id)
         self.face_lock_match_threshold = max(0.0, min(1.0, face_lock_match_threshold))
         self.face_lock_margin = max(0.0, min(0.5, face_lock_margin))
         self.face_min_score = max(0.0, min(1.0, face_min_score))
@@ -77,11 +84,14 @@ class PhotoGalleryService:
         self._last_global_dedup_at: datetime = datetime.min.replace(tzinfo=timezone.utc)
         self._stable_face_hits_by_global: dict[int, int] = {}
         self._stable_face_embedding_by_global: dict[int, np.ndarray] = {}
+        self._insightface_app: Any | None = None
+        self._insightface_ready = False
 
         cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
         self.face_detector = cv2.CascadeClassifier(cascade_path)
         eyes_path = cv2.data.haarcascades + "haarcascade_eye_tree_eyeglasses.xml"
         self.eye_detector = cv2.CascadeClassifier(eyes_path)
+        self._init_face_embedder()
         self._reload_locked_profiles()
         self._reload_photo_profiles()
 
@@ -690,11 +700,49 @@ class PhotoGalleryService:
         return face_crop, float(best_score)
 
     @staticmethod
-    def _extract_face_embedding(face_crop_bgr: np.ndarray) -> np.ndarray:
+    def _extract_face_embedding_hist(face_crop_bgr: np.ndarray) -> np.ndarray:
         hsv = cv2.cvtColor(face_crop_bgr, cv2.COLOR_BGR2HSV)
         hist = cv2.calcHist([hsv], [0, 1, 2], None, [12, 12, 12], [0, 180, 0, 256, 0, 256])
         hist = hist.flatten().astype(np.float32)
         return PhotoGalleryService._normalize(hist)
+
+    def _init_face_embedder(self) -> None:
+        if self.face_embedder_mode == "hist":
+            self._insightface_ready = False
+            self._insightface_app = None
+            return
+        try:
+            from insightface.app import FaceAnalysis  # type: ignore
+        except Exception:
+            self._insightface_ready = False
+            self._insightface_app = None
+            if self.face_embedder_mode == "insightface":
+                print("WARNING: insightface not installed, fallback to histogram embedding")
+            return
+        try:
+            providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+            app = FaceAnalysis(name="buffalo_l", providers=providers)
+            app.prepare(ctx_id=self.face_embedder_ctx_id, det_size=(320, 320))
+            self._insightface_app = app
+            self._insightface_ready = True
+        except Exception:
+            self._insightface_ready = False
+            self._insightface_app = None
+            if self.face_embedder_mode == "insightface":
+                print("WARNING: insightface init failed, fallback to histogram embedding")
+
+    def _extract_face_embedding(self, face_crop_bgr: np.ndarray) -> np.ndarray:
+        if self._insightface_ready and self._insightface_app is not None:
+            try:
+                rgb = cv2.cvtColor(face_crop_bgr, cv2.COLOR_BGR2RGB)
+                faces = self._insightface_app.get(rgb)
+                if faces:
+                    best = max(faces, key=lambda f: float(f.bbox[2] - f.bbox[0]) * float(f.bbox[3] - f.bbox[1]))
+                    emb = np.array(best.embedding, dtype=np.float32)
+                    return self._normalize(emb)
+            except Exception:
+                pass
+        return self._extract_face_embedding_hist(face_crop_bgr)
 
     @staticmethod
     def _normalize(vec: np.ndarray) -> np.ndarray:

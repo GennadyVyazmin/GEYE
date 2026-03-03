@@ -48,6 +48,9 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+Для устойчивой идентификации при смене одежды включен эмбеддер лица `InsightFace` (если доступен).
+Если `insightface` не установлен/не запустился, сервер автоматически откатится на упрощенный эмбеддер.
+
 2. Настройка окружения:
 
 ```bash
@@ -65,6 +68,7 @@ cp .env.example .env
 - `COUNT_CONFIRM_MIN_HITS` и `COUNT_CONFIRM_MIN_AGE_SEC` - подтверждение нового гостя перед записью в статистику,
 - `UNIQUE_REQUIRE_FACE_FOR_COUNT` и `FACE_CONFIRM_MIN_HITS` - учитывать уникального только при подтверждении по лицу,
 - `FACE_MIN_SCORE` - минимальное качество face-crop для сохранения фото и учета в уникальных,
+- `FACE_EMBEDDER` (`auto|insightface|hist`) и `FACE_EMBEDDER_CTX_ID` - выбор движка эмбеддинга лица и режим GPU/CPU,
 - `PHOTO_DIR`, `PHOTO_CAPTURE_ONCE_PER_ID`, `PHOTO_UPDATE_INTERVAL_SEC`, `GALLERY_LIMIT` - параметры фото-галереи,
 - `FACE_LOCK_MATCH_THRESHOLD`, `FACE_LOCK_MARGIN` - жесткость ID-lock по зарегистрированным лицам,
 - `FACE_REBIND_MATCH_THRESHOLD`, `FACE_REBIND_MARGIN` - авто-возврат к старому G-ID при очень сильном сходстве с ранее сохраненными фото,

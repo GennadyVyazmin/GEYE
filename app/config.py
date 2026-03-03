@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     photo_capture_once_per_id: bool = True
     photo_update_interval_sec: float = 4.0
     gallery_limit: int = 120
+    face_embedder: str = "auto"
+    face_embedder_ctx_id: int = 0
     face_lock_match_threshold: float = 0.72
     face_lock_margin: float = 0.05
     face_min_score: float = 0.06
