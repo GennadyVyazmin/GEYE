@@ -25,6 +25,7 @@ class PhotoGalleryService:
         db_path: str,
         session_id: str,
         capture_dir: Path,
+        photo_save_head_fallback: bool,
         photo_capture_once_per_id: bool,
         photo_update_interval_sec: float,
         gallery_limit: int,
@@ -52,6 +53,7 @@ class PhotoGalleryService:
         self.session_id = session_id
         self.capture_dir = capture_dir
         self.capture_dir.mkdir(parents=True, exist_ok=True)
+        self.photo_save_head_fallback = bool(photo_save_head_fallback)
         self.photo_capture_once_per_id = photo_capture_once_per_id
         self.photo_update_interval = timedelta(seconds=max(0.5, photo_update_interval_sec))
         self.gallery_limit = max(1, gallery_limit)
@@ -124,6 +126,7 @@ class PhotoGalleryService:
         with self._lock:
             return {
                 "photo_capture_once_per_id": bool(self.photo_capture_once_per_id),
+                "photo_save_head_fallback": bool(self.photo_save_head_fallback),
                 "photo_update_interval_sec": float(self.photo_update_interval.total_seconds()),
                 "gallery_limit": int(self.gallery_limit),
                 "face_min_score": float(self.face_min_score),
@@ -149,6 +152,8 @@ class PhotoGalleryService:
         with self._lock:
             if "photo_capture_once_per_id" in values:
                 self.photo_capture_once_per_id = bool(values["photo_capture_once_per_id"])
+            if "photo_save_head_fallback" in values:
+                self.photo_save_head_fallback = bool(values["photo_save_head_fallback"])
             if "photo_update_interval_sec" in values:
                 self.photo_update_interval = timedelta(seconds=max(0.5, float(values["photo_update_interval_sec"])))
             if "gallery_limit" in values:
@@ -189,6 +194,7 @@ class PhotoGalleryService:
                 self.face_locked_relaxed_threshold = max(0.0, min(1.0, float(values["face_locked_relaxed_threshold"])))
             return {
                 "photo_capture_once_per_id": bool(self.photo_capture_once_per_id),
+                "photo_save_head_fallback": bool(self.photo_save_head_fallback),
                 "photo_update_interval_sec": float(self.photo_update_interval.total_seconds()),
                 "gallery_limit": int(self.gallery_limit),
                 "face_min_score": float(self.face_min_score),
