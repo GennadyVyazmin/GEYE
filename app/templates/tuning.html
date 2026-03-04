@@ -19,6 +19,7 @@
             <div>
               <button id="profile_safe" class="secondary-btn" type="button">Осторожный</button>
               <button id="profile_fast" class="secondary-btn" type="button">Агрессивный</button>
+              <button id="profile_turbo" class="secondary-btn" type="button">Турбо схлопывание</button>
             </div>
           </div>
         </div>
@@ -207,6 +208,18 @@
         applyValues(v).catch(() => {});
       });
 
+      document.getElementById("profile_turbo").addEventListener("click", () => {
+        const v = {
+          face_global_dedup_interval_sec: 1,
+          face_reentry_merge_threshold: 0.78,
+          face_rebind_match_threshold: 0.82,
+          face_rebind_margin: 0.03,
+          face_stable_min_hits: 1,
+          face_stable_sim_threshold: 0.75
+        };
+        applyValues(v).catch(() => {});
+      });
+
       renderForm();
       loadValues().catch(() => {
         applyStatus.textContent = "Не удалось загрузить настройки";
@@ -214,4 +227,3 @@
     </script>
   </body>
   </html>
-
