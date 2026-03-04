@@ -70,6 +70,7 @@ gallery = PhotoGalleryService(
     db_path=settings.db_path,
     session_id=session_id,
     capture_dir=capture_dir,
+    photo_save_head_fallback=settings.photo_save_head_fallback,
     photo_capture_once_per_id=settings.photo_capture_once_per_id,
     photo_update_interval_sec=settings.photo_update_interval_sec,
     gallery_limit=settings.gallery_limit,

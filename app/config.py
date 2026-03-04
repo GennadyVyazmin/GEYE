@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     count_confirm_no_face_age_sec: float = 2.5
     online_ttl_sec: float = 2.0
     photo_dir: str = "captures"
+    photo_save_head_fallback: bool = True
     photo_capture_once_per_id: bool = True
     photo_update_interval_sec: float = 4.0
     gallery_limit: int = 120
