@@ -96,6 +96,17 @@ h2 {
   margin-bottom: 0;
 }
 
+.fallback-toggle-row label {
+  color: #cbd5e1;
+  font-weight: 600;
+}
+
+.fallback-toggle-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #16a34a;
+}
+
 #threshold_range {
   width: 100%;
   margin-bottom: 8px;

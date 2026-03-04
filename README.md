@@ -67,6 +67,7 @@ cp .env.example .env
 - `MIN_PERSON_BOX_HEIGHT_PX` и `MIN_PERSON_BOX_AREA_RATIO` - отсев ложных мелких детекций (например предметов на полу),
 - `COUNT_CONFIRM_MIN_HITS` и `COUNT_CONFIRM_MIN_AGE_SEC` - подтверждение нового гостя перед записью в статистику,
 - `UNIQUE_REQUIRE_FACE_FOR_COUNT` и `FACE_CONFIRM_MIN_HITS` - учитывать уникального только при подтверждении по лицу,
+- `COUNT_CONFIRM_NO_FACE_AGE_SEC` - fallback: подтвердить уникального по стабильному треку даже без анфаса,
 - `FACE_MIN_SCORE` - минимальное качество face-crop для сохранения фото и учета в уникальных,
 - `FACE_EMBEDDER` (`auto|insightface|hist`) и `FACE_EMBEDDER_CTX_ID` - выбор движка эмбеддинга лица и режим GPU/CPU,
 - `PHOTO_DIR`, `PHOTO_CAPTURE_ONCE_PER_ID`, `PHOTO_UPDATE_INTERVAL_SEC`, `GALLERY_LIMIT` - параметры фото-галереи,

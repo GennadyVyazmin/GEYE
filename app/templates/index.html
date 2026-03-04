@@ -68,6 +68,10 @@
               Применить
             </button>
           </div>
+          <div class="threshold-row fallback-toggle-row">
+            <label for="no_face_fallback_toggle">Fallback без анфаса</label>
+            <input id="no_face_fallback_toggle" type="checkbox" checked />
+          </div>
         </div>
         <button id="reset_btn" class="reset-btn" type="button">
           Сбросить счетчики и треки
@@ -132,6 +136,7 @@
       const confirmAgeRange = document.getElementById("confirm_age_range");
       const confirmAgeInput = document.getElementById("confirm_age_input");
       const confirmAgeCurrent = document.getElementById("confirm_age_current");
+      const noFaceFallbackToggle = document.getElementById("no_face_fallback_toggle");
       const galleryGrid = document.getElementById("gallery_grid");
       const galleryInfo = document.getElementById("gallery_info");
       const galleryTabs = Array.from(document.querySelectorAll(".tab-btn"));
@@ -323,6 +328,17 @@
         }
       }
 
+      async function loadNoFaceFallback() {
+        try {
+          const res = await fetch("/api/no-face-fallback");
+          if (!res.ok) return;
+          const data = await res.json();
+          noFaceFallbackToggle.checked = Boolean(data.enabled);
+        } catch (_e) {
+          // ignore
+        }
+      }
+
       thresholdRange.addEventListener("input", () => {
         thresholdInput.value = thresholdRange.value;
       });
@@ -386,8 +402,29 @@
         }
       });
 
+      noFaceFallbackToggle.addEventListener("change", async () => {
+        noFaceFallbackToggle.disabled = true;
+        try {
+          const res = await fetch("/api/no-face-fallback", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ enabled: noFaceFallbackToggle.checked }),
+          });
+          if (!res.ok) {
+            alert("Не удалось обновить fallback-режим");
+            await loadNoFaceFallback();
+          }
+        } catch (_e) {
+          alert("Сервер недоступен");
+          await loadNoFaceFallback();
+        } finally {
+          noFaceFallbackToggle.disabled = false;
+        }
+      });
+
       loadThreshold();
       loadConfirmAge();
+      loadNoFaceFallback();
 
       document.getElementById("reset_btn").addEventListener("click", async () => {
         const ok = window.confirm(

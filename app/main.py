@@ -59,6 +59,8 @@ analytics = AnalyticsService(
     count_confirm_min_age_sec=settings.count_confirm_min_age_sec,
     unique_require_face_for_count=settings.unique_require_face_for_count,
     face_confirm_min_hits=settings.face_confirm_min_hits,
+    count_confirm_no_face_fallback_enabled=settings.count_confirm_no_face_fallback_enabled,
+    count_confirm_no_face_age_sec=settings.count_confirm_no_face_age_sec,
     online_ttl_sec=settings.online_ttl_sec,
     enable_line_crossing=settings.enable_line_crossing,
     line_y_ratio=settings.line_y_ratio,
@@ -125,6 +127,10 @@ class ReIDThresholdPayload(BaseModel):
 
 class ConfirmAgePayload(BaseModel):
     min_age_sec: float
+
+
+class NoFaceFallbackPayload(BaseModel):
+    enabled: bool
 
 
 class RegisterPersonPayload(BaseModel):
@@ -200,6 +206,17 @@ async def set_confirm_age(payload: ConfirmAgePayload):
         raise HTTPException(status_code=400, detail="min_age_sec must be in [0.0, 20.0]")
     value = analytics.set_confirm_min_age_sec(payload.min_age_sec)
     return {"status": "ok", "min_age_sec": value}
+
+
+@app.get("/api/no-face-fallback")
+async def get_no_face_fallback():
+    return {"enabled": analytics.get_no_face_fallback_enabled()}
+
+
+@app.post("/api/no-face-fallback")
+async def set_no_face_fallback(payload: NoFaceFallbackPayload):
+    value = analytics.set_no_face_fallback_enabled(payload.enabled)
+    return {"status": "ok", "enabled": value}
 
 
 @app.get("/api/gallery")

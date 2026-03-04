@@ -14,6 +14,8 @@ class AnalyticsService:
         count_confirm_min_age_sec: float,
         unique_require_face_for_count: bool,
         face_confirm_min_hits: int,
+        count_confirm_no_face_fallback_enabled: bool,
+        count_confirm_no_face_age_sec: float,
         online_ttl_sec: float,
         enable_line_crossing: bool,
         line_y_ratio: float,
@@ -26,6 +28,8 @@ class AnalyticsService:
         self.count_confirm_min_age = timedelta(seconds=max(0.0, count_confirm_min_age_sec))
         self.unique_require_face_for_count = unique_require_face_for_count
         self.face_confirm_min_hits = max(1, face_confirm_min_hits)
+        self.count_confirm_no_face_fallback_enabled = bool(count_confirm_no_face_fallback_enabled)
+        self.count_confirm_no_face_age = timedelta(seconds=max(0.0, count_confirm_no_face_age_sec))
         self.online_ttl = timedelta(seconds=online_ttl_sec)
         self.enable_line_crossing = enable_line_crossing
         self.crossing_debounce = timedelta(seconds=crossing_debounce_sec)
@@ -49,6 +53,15 @@ class AnalyticsService:
         with self._lock:
             self.count_confirm_min_age = timedelta(seconds=value)
             return self.count_confirm_min_age.total_seconds()
+
+    def get_no_face_fallback_enabled(self) -> bool:
+        with self._lock:
+            return self.count_confirm_no_face_fallback_enabled
+
+    def set_no_face_fallback_enabled(self, enabled: bool) -> bool:
+        with self._lock:
+            self.count_confirm_no_face_fallback_enabled = bool(enabled)
+            return self.count_confirm_no_face_fallback_enabled
 
     def reset_state(self, clear_db: bool = True) -> None:
         with self._lock:
@@ -94,11 +107,22 @@ class AnalyticsService:
             if not is_confirmed:
                 enough_hits = self._seen_hits_by_global[global_id] >= self.count_confirm_min_hits
                 enough_age = (now - first_seen) >= self.count_confirm_min_age
-                enough_face = (
-                    (not self.unique_require_face_for_count)
-                    or (self._face_hits_by_global.get(global_id, 0) >= self.face_confirm_min_hits)
+                face_hits = self._face_hits_by_global.get(global_id, 0)
+                enough_face = (not self.unique_require_face_for_count) or (
+                    face_hits >= self.face_confirm_min_hits
+                )
+                # Fallback for side-profile/brief passers: long-enough stable track can confirm
+                # even without frontal face, when face requirement is enabled.
+                no_face_fallback = (
+                    self.count_confirm_no_face_fallback_enabled
+                    and
+                    self.unique_require_face_for_count
+                    and (face_hits < self.face_confirm_min_hits)
+                    and ((now - first_seen) >= self.count_confirm_no_face_age)
                 )
                 if enough_hits and enough_age and enough_face:
+                    self._confirmed_globals.add(global_id)
+                elif enough_hits and enough_age and no_face_fallback:
                     self._confirmed_globals.add(global_id)
                 else:
                     return
@@ -286,6 +310,7 @@ class AnalyticsService:
             "line_crossing_enabled": self.enable_line_crossing,
             "line_y_ratio": self.line_y_ratio,
             "count_confirm_min_age_sec": self.get_confirm_min_age_sec(),
+            "count_confirm_no_face_fallback_enabled": self.get_no_face_fallback_enabled(),
             "unique_require_face_for_count": self.unique_require_face_for_count,
             "face_confirm_min_hits": self.face_confirm_min_hits,
             "online_count": len(online_ids),

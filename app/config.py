@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     count_confirm_min_age_sec: float = 1.5
     unique_require_face_for_count: bool = True
     face_confirm_min_hits: int = 1
+    count_confirm_no_face_fallback_enabled: bool = True
+    count_confirm_no_face_age_sec: float = 2.5
     online_ttl_sec: float = 2.0
     photo_dir: str = "captures"
     photo_capture_once_per_id: bool = True
