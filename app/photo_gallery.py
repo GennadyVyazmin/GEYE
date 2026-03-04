@@ -120,6 +120,96 @@ class PhotoGalleryService:
                     pass
         self._reload_locked_profiles()
 
+    def get_tuning(self) -> dict:
+        with self._lock:
+            return {
+                "photo_capture_once_per_id": bool(self.photo_capture_once_per_id),
+                "photo_update_interval_sec": float(self.photo_update_interval.total_seconds()),
+                "gallery_limit": int(self.gallery_limit),
+                "face_min_score": float(self.face_min_score),
+                "face_lock_match_threshold": float(self.face_lock_match_threshold),
+                "face_lock_margin": float(self.face_lock_margin),
+                "face_rebind_match_threshold": float(self.face_rebind_match_threshold),
+                "face_rebind_margin": float(self.face_rebind_margin),
+                "face_profiles_refresh_sec": float(self.face_profiles_refresh_interval.total_seconds()),
+                "face_profile_bank_per_id": int(self.face_profile_bank_per_id),
+                "face_rebind_min_votes": int(self.face_rebind_min_votes),
+                "face_rebind_cluster_delta": float(self.face_rebind_cluster_delta),
+                "face_prefer_locked_delta": float(self.face_prefer_locked_delta),
+                "face_global_dedup_threshold": float(self.face_global_dedup_threshold),
+                "face_global_dedup_unknown_threshold": float(self.face_global_dedup_unknown_threshold),
+                "face_reentry_merge_threshold": float(self.face_reentry_merge_threshold),
+                "face_global_dedup_interval_sec": float(self.face_global_dedup_interval.total_seconds()),
+                "face_stable_sim_threshold": float(self.face_stable_sim_threshold),
+                "face_stable_min_hits": int(self.face_stable_min_hits),
+                "face_locked_relaxed_threshold": float(self.face_locked_relaxed_threshold),
+            }
+
+    def update_tuning(self, values: dict) -> dict:
+        with self._lock:
+            if "photo_capture_once_per_id" in values:
+                self.photo_capture_once_per_id = bool(values["photo_capture_once_per_id"])
+            if "photo_update_interval_sec" in values:
+                self.photo_update_interval = timedelta(seconds=max(0.5, float(values["photo_update_interval_sec"])))
+            if "gallery_limit" in values:
+                self.gallery_limit = max(1, int(values["gallery_limit"]))
+            if "face_min_score" in values:
+                self.face_min_score = max(0.0, min(1.0, float(values["face_min_score"])))
+            if "face_lock_match_threshold" in values:
+                self.face_lock_match_threshold = max(0.0, min(1.0, float(values["face_lock_match_threshold"])))
+            if "face_lock_margin" in values:
+                self.face_lock_margin = max(0.0, min(0.5, float(values["face_lock_margin"])))
+            if "face_rebind_match_threshold" in values:
+                self.face_rebind_match_threshold = max(0.0, min(1.0, float(values["face_rebind_match_threshold"])))
+            if "face_rebind_margin" in values:
+                self.face_rebind_margin = max(0.0, min(0.5, float(values["face_rebind_margin"])))
+            if "face_profiles_refresh_sec" in values:
+                self.face_profiles_refresh_interval = timedelta(seconds=max(2.0, float(values["face_profiles_refresh_sec"])))
+            if "face_profile_bank_per_id" in values:
+                self.face_profile_bank_per_id = max(1, int(values["face_profile_bank_per_id"]))
+            if "face_rebind_min_votes" in values:
+                self.face_rebind_min_votes = max(1, int(values["face_rebind_min_votes"]))
+            if "face_rebind_cluster_delta" in values:
+                self.face_rebind_cluster_delta = max(0.0, min(0.2, float(values["face_rebind_cluster_delta"])))
+            if "face_prefer_locked_delta" in values:
+                self.face_prefer_locked_delta = max(0.0, min(0.3, float(values["face_prefer_locked_delta"])))
+            if "face_global_dedup_threshold" in values:
+                self.face_global_dedup_threshold = max(0.0, min(1.0, float(values["face_global_dedup_threshold"])))
+            if "face_global_dedup_unknown_threshold" in values:
+                self.face_global_dedup_unknown_threshold = max(0.0, min(1.0, float(values["face_global_dedup_unknown_threshold"])))
+            if "face_reentry_merge_threshold" in values:
+                self.face_reentry_merge_threshold = max(0.0, min(1.0, float(values["face_reentry_merge_threshold"])))
+            if "face_global_dedup_interval_sec" in values:
+                self.face_global_dedup_interval = timedelta(seconds=max(1.0, float(values["face_global_dedup_interval_sec"])))
+            if "face_stable_sim_threshold" in values:
+                self.face_stable_sim_threshold = max(0.0, min(1.0, float(values["face_stable_sim_threshold"])))
+            if "face_stable_min_hits" in values:
+                self.face_stable_min_hits = max(1, int(values["face_stable_min_hits"]))
+            if "face_locked_relaxed_threshold" in values:
+                self.face_locked_relaxed_threshold = max(0.0, min(1.0, float(values["face_locked_relaxed_threshold"])))
+            return {
+                "photo_capture_once_per_id": bool(self.photo_capture_once_per_id),
+                "photo_update_interval_sec": float(self.photo_update_interval.total_seconds()),
+                "gallery_limit": int(self.gallery_limit),
+                "face_min_score": float(self.face_min_score),
+                "face_lock_match_threshold": float(self.face_lock_match_threshold),
+                "face_lock_margin": float(self.face_lock_margin),
+                "face_rebind_match_threshold": float(self.face_rebind_match_threshold),
+                "face_rebind_margin": float(self.face_rebind_margin),
+                "face_profiles_refresh_sec": float(self.face_profiles_refresh_interval.total_seconds()),
+                "face_profile_bank_per_id": int(self.face_profile_bank_per_id),
+                "face_rebind_min_votes": int(self.face_rebind_min_votes),
+                "face_rebind_cluster_delta": float(self.face_rebind_cluster_delta),
+                "face_prefer_locked_delta": float(self.face_prefer_locked_delta),
+                "face_global_dedup_threshold": float(self.face_global_dedup_threshold),
+                "face_global_dedup_unknown_threshold": float(self.face_global_dedup_unknown_threshold),
+                "face_reentry_merge_threshold": float(self.face_reentry_merge_threshold),
+                "face_global_dedup_interval_sec": float(self.face_global_dedup_interval.total_seconds()),
+                "face_stable_sim_threshold": float(self.face_stable_sim_threshold),
+                "face_stable_min_hits": int(self.face_stable_min_hits),
+                "face_locked_relaxed_threshold": float(self.face_locked_relaxed_threshold),
+            }
+
     def register_detection(
         self,
         global_id: int,

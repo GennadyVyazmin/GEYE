@@ -48,6 +48,40 @@ class ReIDService:
             self.match_threshold = value
             return self.match_threshold
 
+    def get_tuning(self) -> dict:
+        with self._lock:
+            return {
+                "match_threshold": float(self.match_threshold),
+                "weak_match_threshold": float(self.weak_match_threshold),
+                "weak_margin": float(self.weak_margin),
+                "weak_match_recency_sec": float(self.weak_match_recency.total_seconds()),
+                "max_absence_sec": float(self.max_absence.total_seconds()),
+                "track_ttl_sec": float(self.track_ttl.total_seconds()),
+            }
+
+    def update_tuning(self, values: dict) -> dict:
+        with self._lock:
+            if "match_threshold" in values:
+                self.match_threshold = max(0.0, min(1.0, float(values["match_threshold"])))
+            if "weak_match_threshold" in values:
+                self.weak_match_threshold = max(0.0, min(1.0, float(values["weak_match_threshold"])))
+            if "weak_margin" in values:
+                self.weak_margin = max(0.0, min(0.5, float(values["weak_margin"])))
+            if "weak_match_recency_sec" in values:
+                self.weak_match_recency = timedelta(seconds=max(1.0, float(values["weak_match_recency_sec"])))
+            if "max_absence_sec" in values:
+                self.max_absence = timedelta(seconds=max(1.0, float(values["max_absence_sec"])))
+            if "track_ttl_sec" in values:
+                self.track_ttl = timedelta(seconds=max(1.0, float(values["track_ttl_sec"])))
+            return {
+                "match_threshold": float(self.match_threshold),
+                "weak_match_threshold": float(self.weak_match_threshold),
+                "weak_margin": float(self.weak_margin),
+                "weak_match_recency_sec": float(self.weak_match_recency.total_seconds()),
+                "max_absence_sec": float(self.max_absence.total_seconds()),
+                "track_ttl_sec": float(self.track_ttl.total_seconds()),
+            }
+
     def assign_global_id(
         self,
         track_id: int,

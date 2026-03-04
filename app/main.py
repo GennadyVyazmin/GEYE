@@ -139,6 +139,10 @@ class RegisterPersonPayload(BaseModel):
     note: str = ""
 
 
+class TuningPayload(BaseModel):
+    values: dict
+
+
 @app.on_event("startup")
 def on_startup() -> None:
     processor.start()
@@ -154,9 +158,93 @@ async def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
+@app.get("/tuning", response_class=HTMLResponse)
+async def tuning_page(request: Request):
+    return templates.TemplateResponse("tuning.html", {"request": request})
+
+
 @app.get("/api/stats")
 async def stats():
     return JSONResponse(analytics.get_stats())
+
+
+@app.get("/api/tuning")
+async def get_tuning():
+    return {
+        "analytics": analytics.get_tuning(),
+        "reid": reid.get_tuning(),
+        "gallery": gallery.get_tuning(),
+        "processor": processor.get_tuning(),
+    }
+
+
+@app.post("/api/tuning")
+async def set_tuning(payload: TuningPayload):
+    values = payload.values or {}
+    sections = {
+        "analytics": {
+            "count_confirm_min_hits",
+            "count_confirm_min_age_sec",
+            "unique_require_face_for_count",
+            "face_confirm_min_hits",
+            "count_confirm_no_face_fallback_enabled",
+            "count_confirm_no_face_age_sec",
+            "min_db_event_interval_sec",
+            "online_ttl_sec",
+        },
+        "reid": {
+            "match_threshold",
+            "weak_match_threshold",
+            "weak_margin",
+            "weak_match_recency_sec",
+            "max_absence_sec",
+            "track_ttl_sec",
+        },
+        "gallery": {
+            "photo_capture_once_per_id",
+            "photo_update_interval_sec",
+            "gallery_limit",
+            "face_min_score",
+            "face_lock_match_threshold",
+            "face_lock_margin",
+            "face_rebind_match_threshold",
+            "face_rebind_margin",
+            "face_profiles_refresh_sec",
+            "face_profile_bank_per_id",
+            "face_rebind_min_votes",
+            "face_rebind_cluster_delta",
+            "face_prefer_locked_delta",
+            "face_global_dedup_threshold",
+            "face_global_dedup_unknown_threshold",
+            "face_reentry_merge_threshold",
+            "face_global_dedup_interval_sec",
+            "face_stable_sim_threshold",
+            "face_stable_min_hits",
+            "face_locked_relaxed_threshold",
+        },
+        "processor": {
+            "detector_conf",
+            "detector_iou",
+            "min_person_box_height_px",
+            "min_person_box_area_ratio",
+            "frame_max_width",
+            "process_every_n_frames",
+            "jpeg_quality",
+            "rtsp_drain_grabs",
+        },
+    }
+    a_values = {k: v for k, v in values.items() if k in sections["analytics"]}
+    r_values = {k: v for k, v in values.items() if k in sections["reid"]}
+    g_values = {k: v for k, v in values.items() if k in sections["gallery"]}
+    p_values = {k: v for k, v in values.items() if k in sections["processor"]}
+
+    out = {
+        "analytics": analytics.update_tuning(a_values) if a_values else analytics.get_tuning(),
+        "reid": reid.update_tuning(r_values) if r_values else reid.get_tuning(),
+        "gallery": gallery.update_tuning(g_values) if g_values else gallery.get_tuning(),
+        "processor": processor.update_tuning(p_values) if p_values else processor.get_tuning(),
+    }
+    return {"status": "ok", "applied": out}
 
 
 @app.post("/api/reset")

@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GEYE Tuning Lab</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="layout tuning-layout">
+      <section class="stats-card">
+        <h1>Лаборатория Настроек</h1>
+        <p class="muted">Изменения применяются сразу, без перезапуска.</p>
+        <p><a href="/" class="muted">← Вернуться на главную</a></p>
+
+        <div class="threshold-panel">
+          <div class="threshold-row">
+            <strong>Профили</strong>
+            <div>
+              <button id="profile_safe" class="secondary-btn" type="button">Осторожный</button>
+              <button id="profile_fast" class="secondary-btn" type="button">Агрессивный</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="tuning_form"></div>
+        <div class="threshold-row" style="margin-top: 12px">
+          <button id="apply_all" class="secondary-btn" type="button">Применить Все</button>
+          <span id="apply_status" class="muted"></span>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const formHost = document.getElementById("tuning_form");
+      const applyStatus = document.getElementById("apply_status");
+
+      const schema = [
+        {
+          title: "Analytics",
+          fields: [
+            ["count_confirm_min_hits", "number", 1, 10, 1],
+            ["count_confirm_min_age_sec", "number", 0, 20, 0.1],
+            ["unique_require_face_for_count", "checkbox"],
+            ["face_confirm_min_hits", "number", 1, 10, 1],
+            ["count_confirm_no_face_fallback_enabled", "checkbox"],
+            ["count_confirm_no_face_age_sec", "number", 0, 20, 0.1],
+            ["min_db_event_interval_sec", "number", 0.1, 20, 0.1],
+            ["online_ttl_sec", "number", 0.1, 20, 0.1]
+          ]
+        },
+        {
+          title: "ReID",
+          fields: [
+            ["match_threshold", "number", 0, 1, 0.01],
+            ["weak_match_threshold", "number", 0, 1, 0.01],
+            ["weak_margin", "number", 0, 0.5, 0.01],
+            ["weak_match_recency_sec", "number", 1, 10000, 1],
+            ["max_absence_sec", "number", 1, 200000, 1],
+            ["track_ttl_sec", "number", 1, 120, 1]
+          ]
+        },
+        {
+          title: "Face/Gallery",
+          fields: [
+            ["photo_capture_once_per_id", "checkbox"],
+            ["photo_update_interval_sec", "number", 0.5, 120, 0.5],
+            ["gallery_limit", "number", 1, 500, 1],
+            ["face_min_score", "number", 0, 1, 0.01],
+            ["face_lock_match_threshold", "number", 0, 1, 0.01],
+            ["face_lock_margin", "number", 0, 0.5, 0.01],
+            ["face_rebind_match_threshold", "number", 0, 1, 0.01],
+            ["face_rebind_margin", "number", 0, 0.5, 0.01],
+            ["face_profiles_refresh_sec", "number", 1, 120, 1],
+            ["face_profile_bank_per_id", "number", 1, 20, 1],
+            ["face_rebind_min_votes", "number", 1, 10, 1],
+            ["face_rebind_cluster_delta", "number", 0, 0.2, 0.01],
+            ["face_prefer_locked_delta", "number", 0, 0.3, 0.01],
+            ["face_global_dedup_threshold", "number", 0, 1, 0.01],
+            ["face_global_dedup_unknown_threshold", "number", 0, 1, 0.01],
+            ["face_reentry_merge_threshold", "number", 0, 1, 0.01],
+            ["face_global_dedup_interval_sec", "number", 1, 120, 1],
+            ["face_stable_sim_threshold", "number", 0, 1, 0.01],
+            ["face_stable_min_hits", "number", 1, 10, 1],
+            ["face_locked_relaxed_threshold", "number", 0, 1, 0.01]
+          ]
+        },
+        {
+          title: "Processor",
+          fields: [
+            ["detector_conf", "number", 0.05, 0.95, 0.01],
+            ["detector_iou", "number", 0.05, 0.95, 0.01],
+            ["min_person_box_height_px", "number", 1, 300, 1],
+            ["min_person_box_area_ratio", "number", 0, 0.2, 0.001],
+            ["frame_max_width", "number", 320, 1920, 10],
+            ["process_every_n_frames", "number", 1, 10, 1],
+            ["jpeg_quality", "number", 40, 95, 1],
+            ["rtsp_drain_grabs", "number", 0, 20, 1]
+          ]
+        }
+      ];
+
+      function mkField(name, type, min, max, step) {
+        const row = document.createElement("div");
+        row.className = "threshold-row";
+        const label = document.createElement("label");
+        label.textContent = name;
+        label.setAttribute("for", "f_" + name);
+        const input = document.createElement("input");
+        input.id = "f_" + name;
+        input.dataset.key = name;
+        input.type = type === "checkbox" ? "checkbox" : "number";
+        if (type !== "checkbox") {
+          input.min = String(min);
+          input.max = String(max);
+          input.step = String(step);
+        }
+        row.appendChild(label);
+        row.appendChild(input);
+        return row;
+      }
+
+      function renderForm() {
+        schema.forEach((section) => {
+          const panel = document.createElement("div");
+          panel.className = "threshold-panel";
+          const title = document.createElement("h2");
+          title.textContent = section.title;
+          panel.appendChild(title);
+          section.fields.forEach((f) => panel.appendChild(mkField(...f)));
+          formHost.appendChild(panel);
+        });
+      }
+
+      function setValues(data) {
+        const merged = { ...data.analytics, ...data.reid, ...data.gallery, ...data.processor };
+        Object.keys(merged).forEach((k) => {
+          const el = document.getElementById("f_" + k);
+          if (!el) return;
+          if (el.type === "checkbox") el.checked = Boolean(merged[k]);
+          else el.value = String(merged[k]);
+        });
+      }
+
+      async function loadValues() {
+        const r = await fetch("/api/tuning");
+        if (!r.ok) throw new Error("load tuning failed");
+        const data = await r.json();
+        setValues(data);
+      }
+
+      function collectValues() {
+        const values = {};
+        document.querySelectorAll("[data-key]").forEach((el) => {
+          const k = el.dataset.key;
+          values[k] = el.type === "checkbox" ? el.checked : Number(el.value);
+        });
+        return values;
+      }
+
+      async function applyValues(values) {
+        const r = await fetch("/api/tuning", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ values })
+        });
+        if (!r.ok) throw new Error("apply failed");
+        const out = await r.json();
+        setValues(out.applied);
+      }
+
+      document.getElementById("apply_all").addEventListener("click", async () => {
+        applyStatus.textContent = "Применяю...";
+        try {
+          await applyValues(collectValues());
+          applyStatus.textContent = "OK";
+        } catch (_e) {
+          applyStatus.textContent = "Ошибка";
+        }
+      });
+
+      document.getElementById("profile_safe").addEventListener("click", () => {
+        const v = {
+          count_confirm_min_hits: 2,
+          count_confirm_min_age_sec: 2.5,
+          face_rebind_match_threshold: 0.9,
+          face_rebind_margin: 0.08,
+          face_global_dedup_threshold: 0.9,
+          face_global_dedup_unknown_threshold: 0.95,
+          face_reentry_merge_threshold: 0.86,
+          face_global_dedup_interval_sec: 8
+        };
+        applyValues(v).catch(() => {});
+      });
+
+      document.getElementById("profile_fast").addEventListener("click", () => {
+        const v = {
+          count_confirm_min_hits: 2,
+          count_confirm_min_age_sec: 1.5,
+          face_rebind_match_threshold: 0.84,
+          face_rebind_margin: 0.04,
+          face_global_dedup_threshold: 0.85,
+          face_global_dedup_unknown_threshold: 0.9,
+          face_reentry_merge_threshold: 0.8,
+          face_global_dedup_interval_sec: 3
+        };
+        applyValues(v).catch(() => {});
+      });
+
+      renderForm();
+      loadValues().catch(() => {
+        applyStatus.textContent = "Не удалось загрузить настройки";
+      });
+    </script>
+  </body>
+  </html>
+

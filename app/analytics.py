@@ -63,6 +63,48 @@ class AnalyticsService:
             self.count_confirm_no_face_fallback_enabled = bool(enabled)
             return self.count_confirm_no_face_fallback_enabled
 
+    def get_tuning(self) -> dict:
+        with self._lock:
+            return {
+                "count_confirm_min_hits": int(self.count_confirm_min_hits),
+                "count_confirm_min_age_sec": float(self.count_confirm_min_age.total_seconds()),
+                "unique_require_face_for_count": bool(self.unique_require_face_for_count),
+                "face_confirm_min_hits": int(self.face_confirm_min_hits),
+                "count_confirm_no_face_fallback_enabled": bool(self.count_confirm_no_face_fallback_enabled),
+                "count_confirm_no_face_age_sec": float(self.count_confirm_no_face_age.total_seconds()),
+                "min_db_event_interval_sec": float(self.min_db_event_interval.total_seconds()),
+                "online_ttl_sec": float(self.online_ttl.total_seconds()),
+            }
+
+    def update_tuning(self, values: dict) -> dict:
+        with self._lock:
+            if "count_confirm_min_hits" in values:
+                self.count_confirm_min_hits = max(1, int(values["count_confirm_min_hits"]))
+            if "count_confirm_min_age_sec" in values:
+                self.count_confirm_min_age = timedelta(seconds=max(0.0, float(values["count_confirm_min_age_sec"])))
+            if "unique_require_face_for_count" in values:
+                self.unique_require_face_for_count = bool(values["unique_require_face_for_count"])
+            if "face_confirm_min_hits" in values:
+                self.face_confirm_min_hits = max(1, int(values["face_confirm_min_hits"]))
+            if "count_confirm_no_face_fallback_enabled" in values:
+                self.count_confirm_no_face_fallback_enabled = bool(values["count_confirm_no_face_fallback_enabled"])
+            if "count_confirm_no_face_age_sec" in values:
+                self.count_confirm_no_face_age = timedelta(seconds=max(0.0, float(values["count_confirm_no_face_age_sec"])))
+            if "min_db_event_interval_sec" in values:
+                self.min_db_event_interval = timedelta(seconds=max(0.1, float(values["min_db_event_interval_sec"])))
+            if "online_ttl_sec" in values:
+                self.online_ttl = timedelta(seconds=max(0.1, float(values["online_ttl_sec"])))
+            return {
+                "count_confirm_min_hits": int(self.count_confirm_min_hits),
+                "count_confirm_min_age_sec": float(self.count_confirm_min_age.total_seconds()),
+                "unique_require_face_for_count": bool(self.unique_require_face_for_count),
+                "face_confirm_min_hits": int(self.face_confirm_min_hits),
+                "count_confirm_no_face_fallback_enabled": bool(self.count_confirm_no_face_fallback_enabled),
+                "count_confirm_no_face_age_sec": float(self.count_confirm_no_face_age.total_seconds()),
+                "min_db_event_interval_sec": float(self.min_db_event_interval.total_seconds()),
+                "online_ttl_sec": float(self.online_ttl.total_seconds()),
+            }
+
     def reset_state(self, clear_db: bool = True) -> None:
         with self._lock:
             self._last_db_write_by_global.clear()

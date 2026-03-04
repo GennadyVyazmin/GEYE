@@ -70,6 +70,37 @@ class VideoProcessor:
         with self._frame_lock:
             return self._last_jpeg
 
+    def get_tuning(self) -> dict:
+        return {
+            "detector_conf": float(self.conf),
+            "detector_iou": float(self.iou),
+            "min_person_box_height_px": int(self.min_person_box_height_px),
+            "min_person_box_area_ratio": float(self.min_person_box_area_ratio),
+            "frame_max_width": int(self.frame_max_width),
+            "process_every_n_frames": int(self.process_every_n_frames),
+            "jpeg_quality": int(self.jpeg_quality),
+            "rtsp_drain_grabs": int(self.rtsp_drain_grabs),
+        }
+
+    def update_tuning(self, values: dict) -> dict:
+        if "detector_conf" in values:
+            self.conf = max(0.05, min(0.95, float(values["detector_conf"])))
+        if "detector_iou" in values:
+            self.iou = max(0.05, min(0.95, float(values["detector_iou"])))
+        if "min_person_box_height_px" in values:
+            self.min_person_box_height_px = max(1, int(values["min_person_box_height_px"]))
+        if "min_person_box_area_ratio" in values:
+            self.min_person_box_area_ratio = max(0.0, min(1.0, float(values["min_person_box_area_ratio"])))
+        if "frame_max_width" in values:
+            self.frame_max_width = max(320, int(values["frame_max_width"]))
+        if "process_every_n_frames" in values:
+            self.process_every_n_frames = max(1, int(values["process_every_n_frames"]))
+        if "jpeg_quality" in values:
+            self.jpeg_quality = max(40, min(95, int(values["jpeg_quality"])))
+        if "rtsp_drain_grabs" in values:
+            self.rtsp_drain_grabs = max(0, int(values["rtsp_drain_grabs"]))
+        return self.get_tuning()
+
     def _run(self) -> None:
         if self.rtsp_low_latency_mode:
             os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
