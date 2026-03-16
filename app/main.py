@@ -1,5 +1,6 @@
 import asyncio
 import uuid
+import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -16,6 +17,14 @@ from .photo_gallery import PhotoGalleryService
 from .reid import ReIDService
 from .system_metrics import SystemMetricsService
 from .video_processor import VideoProcessor
+
+# Silence known third-party deprecation warning from insightface/skimage path.
+warnings.filterwarnings(
+    "ignore",
+    message=r"`estimate` is deprecated since version 0\.26.*SimilarityTransform\.from_estimate.*",
+    category=FutureWarning,
+    module=r"insightface\.utils\.face_align",
+)
 
 
 app = FastAPI(title="GEYE Video Analytics")
