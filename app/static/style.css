@@ -46,6 +46,33 @@ h2 {
   border: 1px solid #334155;
 }
 
+.runtime-grid {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.runtime-item {
+  background: #0b1220;
+  border: 1px solid #263246;
+  border-radius: 10px;
+  padding: 8px;
+  display: grid;
+  gap: 3px;
+}
+
+.runtime-label {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.runtime-value {
+  color: #e2e8f0;
+  font-weight: 700;
+  font-size: 16px;
+}
+
 .stats-grid {
   display: grid;
   gap: 12px;
@@ -312,6 +339,10 @@ h2 {
 @media (max-width: 960px) {
   .layout {
     grid-template-columns: 1fr;
+  }
+
+  .runtime-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .gallery-grid {

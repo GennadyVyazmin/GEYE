@@ -14,6 +14,7 @@ from .config import settings
 from .db import db_conn, init_db
 from .photo_gallery import PhotoGalleryService
 from .reid import ReIDService
+from .system_metrics import SystemMetricsService
 from .video_processor import VideoProcessor
 
 
@@ -120,6 +121,7 @@ processor = VideoProcessor(
     gallery=gallery,
     reid=reid,
 )
+system_metrics = SystemMetricsService()
 
 
 class ReIDThresholdPayload(BaseModel):
@@ -167,6 +169,13 @@ async def tuning_page(request: Request):
 @app.get("/api/stats")
 async def stats():
     return JSONResponse(analytics.get_stats())
+
+
+@app.get("/api/system-stats")
+async def system_stats():
+    data = system_metrics.get_stats()
+    data.update(processor.get_runtime_stats())
+    return JSONResponse(data)
 
 
 @app.get("/api/tuning")

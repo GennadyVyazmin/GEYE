@@ -12,6 +12,24 @@
         <h1>Видеоаналитика зала</h1>
         <img id="video_img" class="video" src="/video_feed" alt="Live feed" />
         <p id="video_mode" class="muted">Режим видео: stream</p>
+        <div class="runtime-grid">
+          <div class="runtime-item">
+            <span class="runtime-label">FPS</span>
+            <span id="fps_value" class="runtime-value">-</span>
+          </div>
+          <div class="runtime-item">
+            <span class="runtime-label">CPU</span>
+            <span id="cpu_value" class="runtime-value">-</span>
+          </div>
+          <div class="runtime-item">
+            <span class="runtime-label">RAM</span>
+            <span id="ram_value" class="runtime-value">-</span>
+          </div>
+          <div class="runtime-item">
+            <span class="runtime-label">GPU</span>
+            <span id="gpu_value" class="runtime-value">-</span>
+          </div>
+        </div>
       </section>
 
       <section class="stats-card">
@@ -131,6 +149,10 @@
     <script>
       const videoImg = document.getElementById("video_img");
       const videoMode = document.getElementById("video_mode");
+      const fpsValue = document.getElementById("fps_value");
+      const cpuValue = document.getElementById("cpu_value");
+      const ramValue = document.getElementById("ram_value");
+      const gpuValue = document.getElementById("gpu_value");
       const thresholdRange = document.getElementById("threshold_range");
       const thresholdInput = document.getElementById("threshold_input");
       const thresholdCurrent = document.getElementById("threshold_current");
@@ -188,6 +210,31 @@
       }
       setInterval(refreshStats, 2000);
       refreshStats();
+
+      function fmtPercent(v) {
+        return typeof v === "number" ? v.toFixed(0) + "%" : "-";
+      }
+
+      async function refreshSystemStats() {
+        try {
+          const res = await fetch("/api/system-stats");
+          if (!res.ok) return;
+          const data = await res.json();
+          fpsValue.textContent = typeof data.fps === "number" ? data.fps.toFixed(1) : "-";
+          cpuValue.textContent = fmtPercent(data.cpu_percent);
+          ramValue.textContent = fmtPercent(data.ram_percent);
+          gpuValue.textContent =
+            typeof data.gpu_percent === "number"
+              ? fmtPercent(data.gpu_percent)
+              : data.gpu_supported
+                ? "-"
+                : "N/A";
+        } catch (_e) {
+          // ignore network jitter
+        }
+      }
+      setInterval(refreshSystemStats, 2000);
+      refreshSystemStats();
 
       function renderGallery(items) {
         if (!items || items.length === 0) {

@@ -53,6 +53,9 @@ class VideoProcessor:
         self._stop_event = threading.Event()
         self._frame_lock = threading.Lock()
         self._last_jpeg: Optional[bytes] = None
+        self._stats_lock = threading.Lock()
+        self._fps: float = 0.0
+        self._last_fps_ts: float | None = None
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -69,6 +72,12 @@ class VideoProcessor:
     def get_latest_jpeg(self) -> Optional[bytes]:
         with self._frame_lock:
             return self._last_jpeg
+
+    def get_runtime_stats(self) -> dict:
+        with self._stats_lock:
+            return {
+                "fps": float(self._fps),
+            }
 
     def get_tuning(self) -> dict:
         return {
@@ -265,6 +274,7 @@ class VideoProcessor:
                 if ok_jpg:
                     with self._frame_lock:
                         self._last_jpeg = jpg.tobytes()
+                    self._update_fps()
 
             cap.release()
             time.sleep(1)
@@ -335,3 +345,21 @@ class VideoProcessor:
         dist = float(np.sqrt(((acx - bcx) ** 2) + ((acy - bcy) ** 2)))
         norm = dist / float(max(1, max(frame_w, frame_h)))
         return iou < 0.02 and norm > 0.22
+
+    def _update_fps(self) -> None:
+        now = time.time()
+        with self._stats_lock:
+            if self._last_fps_ts is None:
+                self._last_fps_ts = now
+                self._fps = 0.0
+                return
+            dt = now - self._last_fps_ts
+            if dt <= 0.0:
+                return
+            instant_fps = 1.0 / dt
+            if self._fps <= 0.0:
+                self._fps = instant_fps
+            else:
+                # Small smoothing to reduce flicker in the UI.
+                self._fps = (self._fps * 0.8) + (instant_fps * 0.2)
+            self._last_fps_ts = now
